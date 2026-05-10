@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Hand Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: #00ffcc;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+  }
+
+  #title {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #00ffcc;
+    text-shadow: 0 0 10px #00ffcc88;
+  }
+
+  #status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff4444;
+    box-shadow: 0 0 6px #ff4444;
+    transition: all 0.3s;
+  }
+  #status-dot.active {
+    background: #00ffcc;
+    box-shadow: 0 0 10px #00ffcc;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  #container {
+    position: relative;
+    width: 100%;
+    height: 100dvh;
+  }
+
+  #video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  #canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(-1);
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,255,204,0.015) 3px, rgba(0,255,204,0.015) 4px),
+      repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,255,204,0.01) 3px, rgba(0,255,204,0.01) 4px);
+  }
+
+  #corner-tl, #corner-tr, #corner-bl, #corner-br {
+    position: absolute;
+    width: 24px; height: 24px;
+    pointer-events: none;
+  }
+  #corner-tl { top: 60px; left: 12px; border-top: 2px solid #00ffcc88; border-left: 2px solid #00ffcc88; }
+  #corner-tr { top: 60px; right: 12px; border-top: 2px solid #00ffcc88; border-right: 2px solid #00ffcc88; }
+  #corner-bl { bottom: 60px; left: 12px; border-bottom: 2px solid #00ffcc88; border-left: 2px solid #00ffcc88; }
+  #corner-br { bottom: 60px; right: 12px; border-bottom: 2px solid #00ffcc88; border-right: 2px solid #00ffcc88; }
+
+  #bottom-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 10;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #00ffcc88;
+  }
+
+  #finger-count {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: #00ffcc;
+    text-shadow: 0 0 12px #00ffcc;
+  }
+
+  #loading {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  #loading-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #00ffcc;
+    text-shadow: 0 0 20px #00ffcc;
+  }
+
+  #loading-bar-wrap {
+    width: 200px;
+    height: 2px;
+    background: #ffffff15;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #loading-bar {
+    height: 100%;
+    width: 0%;
+    background: #00ffcc;
+    box-shadow: 0 0 8px #00ffcc;
+    transition: width 0.3s;
+    animation: loading-anim 2s ease-in-out infinite;
+  }
+  @keyframes loading-anim {
+    0% { width: 0%; margin-left: 0%; }
+    50% { width: 60%; margin-left: 20%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
+
+  #loading-msg {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #00ffcc66;
+  }
+
+  #start-btn {
+    margin-top: 10px;
+    padding: 12px 32px;
+    background: transparent;
+    border: 1px solid #00ffcc;
+    color: #00ffcc;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    display: none;
+    box-shadow: 0 0 12px #00ffcc44;
+    transition: all 0.2s;
+  }
+  #start-btn:hover { background: #00ffcc22; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div id="loading-title">HAND · SCAN</div>
+  <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+  <div id="loading-msg">CARGANDO MODELO DE IA...</div>
+  <button id="start-btn" onclick="startCamera()">ACTIVAR CÁMARA</button>
+</div>
+
+<div id="container">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="overlay"></div>
+  <div id="corner-tl"></div>
+  <div id="corner-tr"></div>
+  <div id="corner-bl"></div>
+  <div id="corner-br"></div>
+</div>
+
+<div id="header">
+  <div id="title">HAND SCAN</div>
+  <div id="status-dot"></div>
+</div>
+
+<div id="bottom-bar">
+  <span id="fps-label">FPS: --</span>
+  <span id="finger-count">0 DEDOS</span>
+  <span id="hand-label">MANO: --</span>
+</div>
+
+<script type="module">
+import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.mjs";
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const loading = document.getElementById('loading');
+const loadingMsg = document.getElementById('loading-msg');
+const startBtn = document.getElementById('start-btn');
+const statusDot = document.getElementById('status-dot');
+const fingerCountEl = document.getElementById('finger-count');
+const fpsLabel = document.getElementById('fps-label');
+const handLabel = document.getElementById('hand-label');
+
+const FINGER_TIPS = [4, 8, 12, 16, 20];
+const COLORS = ['#ff6b6b','#ffcc00','#00ffcc','#6b8cff','#ff6bff'];
+const COLOR_NAMES = ['PULGAR','ÍNDICE','MEDIO','ANULAR','MEÑIQUE'];
+
+let handLandmarker = null;
+let lastVideoTime = -1;
+let lastFpsTime = performance.now();
+let frameCount = 0;
+let fps = 0;
+let rafId = null;
+
+async function loadModel() {
+  try {
+    loadingMsg.textContent = 'INICIALIZANDO WASM...';
+    const vision = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"
+    );
+    loadingMsg.textContent = 'CARGANDO RED NEURONAL...';
+    handLandmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO",
+      numHands: 2,
+      minHandDetectionConfidence: 0.5,
+      minHandPresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    loadingMsg.textContent = 'MODELO LISTO';
+    startBtn.style.display = 'block';
+  } catch(e) {
+    loadingMsg.textContent = 'ERROR: ' + e.message.slice(0,40);
+  }
+}
+
+window.startCamera = async function() {
+  startBtn.disabled = true;
+  loadingMsg.textContent = 'SOLICITANDO CÁMARA...';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    await video.play();
+    loading.style.display = 'none';
+    statusDot.classList.add('active');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    predict();
+  } catch(e) {
+    loadingMsg.textContent = 'ERROR CÁMARA: ' + e.message.slice(0,40);
+    startBtn.disabled = false;
+  }
+};
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function predict() {
+  rafId = requestAnimationFrame(predict);
+  if (!handLandmarker || video.readyState < 2) return;
+
+  const now = performance.now();
+  frameCount++;
+  if (now - lastFpsTime >= 1000) {
+    fps = Math.round(frameCount * 1000 / (now - lastFpsTime));
+    fpsLabel.textContent = 'FPS: ' + fps;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+
+  if (video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+
+  const results = handLandmarker.detectForVideo(video, now);
+  drawFrame(results);
+}
+
+function drawFrame(results) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!results.landmarks || results.landmarks.length === 0) {
+    fingerCountEl.textContent = '0 DEDOS';
+    handLabel.textContent = 'MANO: --';
+    return;
+  }
+
+  let totalFingers = 0;
+  const handNames = [];
+
+  results.landmarks.forEach((landmarks, hi) => {
+    const handedness = results.handedness[hi]?.[0]?.categoryName || '?';
+    handNames.push(handedness === 'Right' ? 'DER' : 'IZQ');
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    function lx(l) { return l.x * W; }
+    function ly(l) { return l.y * H; }
+
+    ctx.save();
+    ctx.strokeStyle = '#00ffcc33';
+    ctx.lineWidth = 1.5;
+
+    const connections = [
+      [0,1],[1,2],[2,3],[3,4],
+      [0,5],[5,6],[6,7],[7,8],
+      [5,9],[9,10],[10,11],[11,12],
+      [9,13],[13,14],[14,15],[15,16],
+      [13,17],[17,18],[18,19],[19,20],
+      [0,17]
+    ];
+    connections.forEach(([a,b]) => {
+      ctx.beginPath();
+      ctx.moveTo(lx(landmarks[a]), ly(landmarks[a]));
+      ctx.lineTo(lx(landmarks[b]), ly(landmarks[b]));
+      ctx.stroke();
+    });
+
+    FINGER_TIPS.forEach((tip, i) => {
+      const lm = landmarks[tip];
+      const x = lx(lm);
+      const y = ly(lm);
+      const color = COLORS[i];
+
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(x, y, 16, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.font = '10px "Share Tech Mono"';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText(COLOR_NAMES[i], x, y - 22);
+      ctx.restore();
+
+      totalFingers++;
+    });
+
+    const palm = landmarks[0];
+    const px = lx(palm);
+    const py = ly(palm);
+    ctx.save();
+    ctx.font = '11px "Share Tech Mono"';
+    ctx.fillStyle = '#00ffccaa';
+    ctx.textAlign = 'center';
+    ctx.fillText(handedness === 'Right' ? '◆ DER' : '◆ IZQ', px, py + 28);
+    ctx.restore();
+
+    ctx.restore();
+  });
+
+  fingerCountEl.textContent = totalFingers + (totalFingers === 1 ? ' DEDO' : ' DEDOS');
+  handLabel.textContent = 'MANO: ' + handNames.join(' + ');
+}
+
+loadModel();
+</script>
+</body>
+</html>
