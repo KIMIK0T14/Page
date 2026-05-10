@@ -3,38 +3,555 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Hand Tracker</title>
+<title>HAND SCAN v2</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100dvh;overflow:hidden;background:#000;font-family:'Share Tech Mono',monospace;color:#00ffcc}
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+#loading{position:fixed;inset:0;z-index:200;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.l-logo{font-family:'Orbitron',monospace;font-size:26px;font-weight:900;letter-spacing:6px;color:#00ffcc;text-shadow:0 0 30px #00ffcc80}
+.l-sub{font-size:10px;letter-spacing:4px;color:#00ffcc55;margin-top:-8px}
+.l-bar-wrap{width:220px;height:1px;background:#ffffff10;margin-top:8px}
+.l-bar{height:100%;background:#00ffcc;box-shadow:0 0 8px #00ffcc;width:0;animation:lbar 1.8s ease-in-out infinite}
+@keyframes lbar{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
+.l-msg{font-size:10px;letter-spacing:2px;color:#00ffcc44}
+#start-btn{margin-top:12px;padding:12px 36px;background:transparent;border:1px solid #00ffcc55;color:#00ffcc;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:3px;cursor:pointer;display:none;transition:all .2s}
+#start-btn:active{background:#00ffcc22;transform:scale(0.97)}
 
-  body {
-    background: #000;
-    color: #00ffcc;
-    font-family: 'Share Tech Mono', monospace;
-    overflow: hidden;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+#app{position:relative;width:100%;height:100dvh}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#canvas{position:absolute;inset:0;width:100%;height:100%}
+
+/* scanlines */
+#scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,204,.012) 2px,rgba(0,255,204,.012) 4px);animation:scanmove 8s linear infinite}
+@keyframes scanmove{0%{background-position:0 0}100%{background-position:0 100%}}
+
+/* corners */
+.corner{position:absolute;width:20px;height:20px;pointer-events:none}
+.corner.tl{top:56px;left:10px;border-top:1.5px solid #00ffcc66;border-left:1.5px solid #00ffcc66}
+.corner.tr{top:56px;right:10px;border-top:1.5px solid #00ffcc66;border-right:1.5px solid #00ffcc66}
+.corner.bl{bottom:56px;left:10px;border-bottom:1.5px solid #00ffcc66;border-left:1.5px solid #00ffcc66}
+.corner.br{bottom:56px;right:10px;border-bottom:1.5px solid #00ffcc66;border-right:1.5px solid #00ffcc66}
+
+/* HUD top */
+#hud-top{position:fixed;top:0;left:0;right:0;z-index:10;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.85),transparent)}
+.hud-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:4px;color:#00ffcc;text-shadow:0 0 10px #00ffcc66}
+.hud-title span{font-size:9px;font-weight:400;color:#00ffcc55;letter-spacing:2px;display:block;margin-top:1px}
+#dot{width:7px;height:7px;border-radius:50%;background:#ff3333;box-shadow:0 0 6px #ff3333;transition:all .3s}
+#dot.on{background:#00ffcc;box-shadow:0 0 10px #00ffcc;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* HUD bottom */
+#hud-bot{position:fixed;bottom:0;left:0;right:0;z-index:10;padding:8px 14px 10px;background:linear-gradient(to top,rgba(0,0,0,.85),transparent);display:flex;align-items:flex-end;justify-content:space-between}
+#fps-el{font-size:10px;letter-spacing:1px;color:#00ffcc55}
+#finger-el{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:#00ffcc;text-shadow:0 0 14px #00ffcc;transition:transform .1s}
+#gesture-el{font-size:10px;letter-spacing:2px;color:#00ffcc99;text-align:right;min-width:80px}
+
+/* Gesture toast */
+#toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);z-index:50;background:rgba(0,0,0,.8);border:1px solid #00ffcc44;padding:10px 24px;border-radius:4px;font-family:'Orbitron',monospace;font-size:14px;letter-spacing:3px;color:#00ffcc;white-space:nowrap;transition:transform .2s,opacity .2s;opacity:0;pointer-events:none}
+#toast.show{transform:translate(-50%,-50%) scale(1);opacity:1}
+
+/* Pinch zoom indicator (ring around lens) */
+#pinch-ring{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;opacity:0;transition:opacity .3s;width:80px;height:80px;border-radius:50%;border:1.5px solid #00ffccaa;box-shadow:0 0 12px #00ffcc44}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="l-logo">HAND·SCAN<div class="l-sub">v2.0 · AI POWERED</div></div>
+  <div class="l-bar-wrap"><div class="l-bar"></div></div>
+  <div class="l-msg" id="l-msg">INICIALIZANDO...</div>
+  <button id="start-btn" onclick="startCam()">▶ ACTIVAR CÁMARA</button>
+</div>
+
+<div id="app">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="scan"></div>
+  <div class="corner tl"></div><div class="corner tr"></div>
+  <div class="corner bl"></div><div class="corner br"></div>
+</div>
+
+<div id="hud-top">
+  <div class="hud-title">HAND SCAN<span id="mode-label">MODO: DETECCIÓN</span></div>
+  <div id="dot"></div>
+</div>
+<div id="hud-bot">
+  <div id="fps-el">FPS: --</div>
+  <div id="finger-el">— DEDOS</div>
+  <div id="gesture-el">—</div>
+</div>
+<div id="toast"></div>
+
+<script type="module">
+import { HandLandmarker, FilesetResolver }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.mjs";
+
+// ── Elements ─────────────────────────────────────────────────────────────────
+const video   = document.getElementById('video');
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const loading = document.getElementById('loading');
+const lMsg    = document.getElementById('l-msg');
+const startBtn= document.getElementById('start-btn');
+const dotEl   = document.getElementById('dot');
+const fpsEl   = document.getElementById('fps-el');
+const fingerEl= document.getElementById('finger-el');
+const gestureEl=document.getElementById('gesture-el');
+const toast   = document.getElementById('toast');
+const modeLabel=document.getElementById('mode-label');
+
+// ── Config ────────────────────────────────────────────────────────────────────
+const TIPS  = [4,8,12,16,20];
+const NAMES = ['PULGAR','ÍNDICE','MEDIO','ANULAR','MEÑIQUE'];
+const COLS  = ['#ff4d6d','#ffd166','#06d6a0','#4cc9f0','#c77dff'];
+const LERP  = 0.22; // smoothing factor (lower = smoother)
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let landmarker = null, lastVT = -1;
+let fpsT = performance.now(), fpsF = 0, fps = 0;
+let smoothed = []; // array of hands, each hand = array of 21 {x,y,z}
+let particles = []; // {x,y,vx,vy,life,maxLife,color}
+let lastGesture = '', gestureTimer = 0;
+let pinchActive = false, pinchZoom = 1.0, pinchCenter = {x:0,y:0};
+let pinchDist0 = null, pinchZoom0 = 1.0;
+let toastTimer = null;
+let lastFingerCount = -1;
+
+// ── Model load ────────────────────────────────────────────────────────────────
+async function loadModel() {
+  try {
+    lMsg.textContent = 'CARGANDO WASM...';
+    const vis = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"
+    );
+    lMsg.textContent = 'CARGANDO RED NEURONAL...';
+    landmarker = await HandLandmarker.createFromOptions(vis, {
+      baseOptions: {
+        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO",
+      numHands: 2,
+      minHandDetectionConfidence: 0.3,
+      minHandPresenceConfidence: 0.3,
+      minTrackingConfidence:     0.3
+    });
+    lMsg.textContent = '✓ MODELO LISTO';
+    startBtn.style.display = 'block';
+  } catch(e) {
+    lMsg.textContent = 'ERROR: ' + e.message.slice(0,50);
+  }
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────────
+window.startCam = async () => {
+  startBtn.disabled = true;
+  lMsg.textContent = 'SOLICITANDO CÁMARA...';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'user', width:{ideal:1280}, height:{ideal:720} },
+      audio:false
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    await video.play();
+    loading.style.display = 'none';
+    dotEl.classList.add('on');
+    resize(); window.addEventListener('resize', resize);
+    loop();
+  } catch(e) {
+    lMsg.textContent = 'ERROR CÁMARA: ' + e.message;
+    startBtn.disabled = false;
+  }
+};
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+// ── Lerp helper ───────────────────────────────────────────────────────────────
+function lerp(a,b,t){ return a + (b-a)*t }
+
+// ── Smooth landmarks ──────────────────────────────────────────────────────────
+function smoothHands(raw) {
+  const out = [];
+  for (let h=0; h<raw.length; h++) {
+    if (!smoothed[h]) {
+      smoothed[h] = raw[h].map(l => ({x:l.x, y:l.y, z:l.z}));
+    } else {
+      for (let i=0; i<21; i++) {
+        smoothed[h][i].x = lerp(smoothed[h][i].x, raw[h][i].x, LERP);
+        smoothed[h][i].y = lerp(smoothed[h][i].y, raw[h][i].y, LERP);
+        smoothed[h][i].z = lerp(smoothed[h][i].z, raw[h][i].z, LERP);
+      }
+    }
+    out.push(smoothed[h]);
+  }
+  // clear extra smoothed slots
+  smoothed.length = raw.length;
+  return out;
+}
+
+// ── Gesture detection ─────────────────────────────────────────────────────────
+function detectGesture(lms) {
+  const W = canvas.width, H = canvas.height;
+  function tip(i){ return { x: lms[TIPS[i]].x*W, y: lms[TIPS[i]].y*H } }
+  function mcp(i){ const idx=[1,5,9,13,17]; return { x: lms[idx[i]].x*W, y: lms[idx[i]].y*H } }
+
+  // finger extended: tip higher (lower y) than PIP
+  const PIPs = [3,7,11,15,19];
+  const ext = TIPS.map((t,i) => {
+    if (i===0) { // thumb: compare x distance
+      return Math.abs(lms[t].x - lms[3].x) > 0.06;
+    }
+    return lms[t].y < lms[PIPs[i]].y - 0.02;
+  });
+
+  const count = ext.filter(Boolean).length;
+
+  if (!ext[0]&&!ext[1]&&!ext[2]&&!ext[3]&&!ext[4]) return { name:'PUÑO', emoji:'✊', count:0 };
+  if (ext[0]&&!ext[1]&&!ext[2]&&!ext[3]&&!ext[4]) return { name:'PULGAR', emoji:'👍', count:1 };
+  if (!ext[0]&&ext[1]&&!ext[2]&&!ext[3]&&!ext[4]) return { name:'APUNTAR', emoji:'☝️', count:1 };
+  if (!ext[0]&&ext[1]&&ext[2]&&!ext[3]&&!ext[4]) return { name:'PAZ', emoji:'✌️', count:2 };
+  if (!ext[0]&&ext[1]&&ext[2]&&ext[3]&&!ext[4]) return { name:'3 DEDOS', emoji:'🤟', count:3 };
+  if (!ext[0]&&ext[1]&&ext[2]&&ext[3]&&ext[4]) return { name:'4 DEDOS', emoji:'🖖', count:4 };
+  if (ext[0]&&ext[1]&&ext[2]&&ext[3]&&ext[4]) return { name:'MANO ABIERTA', emoji:'🖐️', count:5 };
+  if (ext[0]&&!ext[1]&&!ext[2]&&!ext[3]&&ext[4]) return { name:'ROCK', emoji:'🤘', count:2 };
+
+  return { name: count+' DEDOS', emoji:'', count };
+}
+
+// ── Pinch zoom ────────────────────────────────────────────────────────────────
+function checkPinch(lms) {
+  const W = canvas.width, H = canvas.height;
+  const thumb = lms[4];
+  const index = lms[8];
+  const dx = (thumb.x - index.x)*W;
+  const dy = (thumb.y - index.y)*H;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const cx = ((thumb.x + index.x)/2)*W;
+  const cy = ((thumb.y + index.y)/2)*H;
+
+  // pinch starts when dist < 60px
+  const isPinch = dist < 70;
+
+  if (isPinch) {
+    if (!pinchActive) {
+      pinchActive = true;
+      pinchDist0  = dist;
+      pinchZoom0  = pinchZoom;
+    } else {
+      pinchZoom = Math.max(1, Math.min(5, pinchZoom0 * (pinchDist0 / Math.max(dist,10))));
+    }
+    pinchCenter = { x: cx, y: cy };
+  } else {
+    if (pinchActive) { pinchActive = false; pinchDist0 = null; }
   }
 
-  #header {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 10;
-    padding: 10px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+  return { isPinch, dist, cx, cy };
+}
+
+// ── Particles ─────────────────────────────────────────────────────────────────
+function spawnParticle(x,y,color) {
+  const angle = Math.random()*Math.PI*2;
+  const speed = 0.5+Math.random()*1.5;
+  particles.push({ x,y, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed,
+    life:1, maxLife:30+Math.random()*20, color });
+}
+
+function updateParticles() {
+  particles = particles.filter(p => p.life > 0);
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.96; p.vy *= 0.96;
+    p.life -= 1/p.maxLife;
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const a = p.life * 0.7;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2*p.life, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toast.classList.remove('show'), 1200);
+}
+
+// ── Main draw ─────────────────────────────────────────────────────────────────
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],
+  [0,17]
+];
+
+function drawHand(lms, handedness, frameNo) {
+  const W = canvas.width, H = canvas.height;
+  // NOTE: video is mirrored via CSS (scaleX(-1)), canvas is NOT mirrored,
+  // but landmarks from MediaPipe match the unmirrored video coordinates.
+  // We need to flip X for canvas because the video is flipped visually.
+  function px(l){ return W - l.x*W }
+  function py(l){ return l.y*H }
+
+  // Skeleton
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,255,204,0.25)';
+  ctx.lineWidth = 1.2;
+  for (const [a,b] of CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo(px(lms[a]), py(lms[a]));
+    ctx.lineTo(px(lms[b]), py(lms[b]));
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Palm dot
+  const palmX = px(lms[0]), palmY = py(lms[0]);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(palmX, palmY, 5, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,255,204,0.5)';
+  ctx.fill();
+  ctx.restore();
+
+  // Finger tips
+  TIPS.forEach((tip, i) => {
+    const x = px(lms[tip]);
+    const y = py(lms[tip]);
+    const col = COLS[i];
+
+    // Spawn particles every 3 frames
+    if (frameNo % 3 === 0) spawnParticle(x, y, col);
+
+    // Outer ring (glow)
+    ctx.save();
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI*2);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.8;
+    ctx.globalAlpha = 0.8;
+    ctx.stroke();
+
+    // Inner ring
+    ctx.beginPath();
+    ctx.arc(x, y, 9, 0, Math.PI*2);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI*2);
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.restore();
+
+    // Label — drawn NORMALLY (not mirrored) since we already flipped X
+    ctx.save();
+    ctx.font = 'bold 9px "Share Tech Mono"';
+    ctx.fillStyle = col;
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(NAMES[i], x, y - 24);
+    ctx.restore();
+  });
+
+  // Hand label at wrist
+  const wristX = px(lms[0]), wristY = py(lms[0]);
+  ctx.save();
+  ctx.font = '10px "Share Tech Mono"';
+  ctx.fillStyle = 'rgba(0,255,204,0.6)';
+  ctx.textAlign = 'center';
+  ctx.fillText(handedness==='Right'?'DERECHA':'IZQUIERDA', wristX, wristY + 22);
+  ctx.restore();
+}
+
+// Pinch zoom lens
+function drawZoomLens() {
+  if (!pinchActive) return;
+  const { x, y } = pinchCenter;
+  const W = canvas.width, H = canvas.height;
+
+  // Flip X since video is CSS-mirrored
+  const fx = W - x;
+  const fy = y;
+
+  const radius = Math.max(50, Math.min(160, 80 * (pinchZoom/2)));
+  const zoom   = pinchZoom;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(fx, fy, radius, 0, Math.PI*2);
+  ctx.clip();
+
+  // Draw the video mirrored inside the circle
+  ctx.save();
+  ctx.translate(fx, fy);
+  ctx.scale(-zoom, zoom); // mirror + zoom
+  const vW = video.videoWidth || W;
+  const vH = video.videoHeight || H;
+  const scale = Math.max(W/vW, H/vH);
+  const dW = vW*scale, dH = vH*scale;
+  const offX = -(dW/2);
+  const offY = -(dH/2);
+  // shift to center on pinch point
+  const shiftX = (fx - W/2) / zoom;
+  const shiftY = (fy - H/2) / zoom;
+  ctx.drawImage(video, offX + shiftX, offY + shiftY, dW, dH);
+  ctx.restore();
+
+  ctx.restore();
+
+  // Ring border
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(fx, fy, radius, 0, Math.PI*2);
+  ctx.strokeStyle = '#00ffcc';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00ffcc';
+  ctx.shadowBlur = 14;
+  ctx.globalAlpha = 0.9;
+  ctx.stroke();
+
+  // Zoom label
+  ctx.font = 'bold 11px "Orbitron", monospace';
+  ctx.fillStyle = '#00ffcc';
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = 0.85;
+  ctx.fillText(zoom.toFixed(1)+'×', fx, fy + radius + 16);
+  ctx.restore();
+
+  // Crosshair
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,255,204,0.3)';
+  ctx.lineWidth = 0.8;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.moveTo(fx-8,fy); ctx.lineTo(fx+8,fy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(fx,fy-8); ctx.lineTo(fx,fy+8); ctx.stroke();
+  ctx.restore();
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────────
+let frameNo = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  if (!landmarker || video.readyState < 2) return;
+
+  const now = performance.now();
+  fpsF++;
+  if (now - fpsT >= 1000) {
+    fps = Math.round(fpsF*1000/(now-fpsT));
+    fpsEl.textContent = 'FPS: '+fps;
+    fpsF = 0; fpsT = now;
   }
 
-  #title {
-    font-family: 'Orbitron', monospace;
-    font-size: 14px;
+  if (video.currentTime === lastVT) {
+    // Still draw particles even on same frame
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    updateParticles(); drawParticles();
+    drawZoomLens();
+    return;
+  }
+  lastVT = video.currentTime;
+  frameNo++;
+
+  const results = landmarker.detectForVideo(video, now);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  updateParticles();
+  drawParticles();
+
+  if (!results.landmarks || results.landmarks.length === 0) {
+    smoothed = [];
+    pinchActive = false;
+    if (lastFingerCount !== 0) {
+      fingerEl.textContent = '—';
+      gestureEl.textContent = '—';
+      modeLabel.textContent = 'MODO: BUSCANDO';
+      lastFingerCount = 0;
+    }
+    return;
+  }
+
+  const hands = smoothHands(results.landmarks);
+
+  let totalFingers = 0;
+  let gestureNames = [];
+  let pinchFound = false;
+
+  hands.forEach((lms, hi) => {
+    const handedness = results.handedness[hi]?.[0]?.categoryName || 'Right';
+    drawHand(lms, handedness, frameNo);
+
+    const gesture = detectGesture(lms);
+    totalFingers = Math.max(totalFingers, gesture.count);
+    gestureNames.push(gesture.name);
+
+    // Pinch zoom (use first hand)
+    if (hi === 0) {
+      const { isPinch } = checkPinch(lms);
+      if (isPinch) pinchFound = true;
+    }
+  });
+
+  if (!pinchFound && pinchActive) { pinchActive = false; }
+  drawZoomLens();
+
+  // Update HUD
+  const totalCount = hands.reduce((s,lms)=> s + detectGesture(lms).count ,0);
+  if (totalCount !== lastFingerCount) {
+    lastFingerCount = totalCount;
+    fingerEl.textContent = totalCount + (totalCount===1?' DEDO':' DEDOS');
+    fingerEl.style.transform = 'scale(1.15)';
+    setTimeout(()=>fingerEl.style.transform='scale(1)',120);
+    if (navigator.vibrate && totalCount > 0) navigator.vibrate(20);
+  }
+
+  const gName = gestureNames.join(' + ');
+  gestureEl.textContent = gName;
+
+  if (pinchActive) {
+    modeLabel.textContent = 'ZOOM: '+pinchZoom.toFixed(1)+'×';
+  } else {
+    modeLabel.textContent = 'MODO: DETECCIÓN';
+  }
+
+  // Gesture toast
+  if (gName !== lastGesture && gestureNames.length > 0) {
+    const g = detectGesture(hands[0]);
+    if (['PUÑO','PAZ','ROCK','MANO ABIERTA','PULGAR'].includes(g.name)) {
+      showToast(g.emoji ? g.emoji+' '+g.name : g.name);
+    }
+    lastGesture = gName;
+  }
+}
+
+loadModel();
+</script>
+</body>
+</html>    font-size: 14px;
     font-weight: 700;
     letter-spacing: 3px;
     color: #00ffcc;
