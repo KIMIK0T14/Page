@@ -1,1629 +1,503 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>block.io — Importador 3D</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg: #07080b;
-  --bg2: #0a0c11;
-  --surf: rgba(16,18,26,0.72);
-  --card: #14161f;
-  --card-hi: #181b26;
-  --input: #161924;
-  --border: rgba(255,255,255,0.07);
-  --border-hi: rgba(255,255,255,0.14);
-  --accent: #6d72f6;
-  --accent2: #a855f7;
-  --accent-dim: rgba(109,114,246,0.16);
-  --grad: linear-gradient(135deg,#6d72f6 0%,#a855f7 100%);
-  --green: #34d399;
-  --green-dim: rgba(52,211,153,0.12);
-  --red: #fb7185;
-  --red-dim: rgba(251,113,133,0.12);
-  --amber: #fbbf24;
-  --amber-dim: rgba(251,191,36,0.12);
-  --t1: #f4f5fa;
-  --t2: #868da3;
-  --t3: #444a5e;
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'Inter', sans-serif;
-  --r: 11px;
-  --r-sm: 8px;
-  --shadow: 0 10px 34px rgba(0,0,0,0.45);
-  --glow: 0 0 0 1px rgba(109,114,246,0.5), 0 6px 22px rgba(109,114,246,0.28);
-  --ease: cubic-bezier(.22,.61,.36,1);
-  --dur: .22s;
-}
-
-html, body { height: 100%; }
-
-@keyframes fadeUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform:none; } }
-@keyframes fadeDown { from { opacity:0; transform: translateY(-10px); } to { opacity:1; transform:none; } }
-@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-@keyframes pop { 0% { opacity:0; transform: scale(.96); } 60% { transform: scale(1.01); } 100% { opacity:1; transform: scale(1); } }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
-}
-
-::selection { background: rgba(109,114,246,0.35); }
-
-body {
-  background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(168,85,247,0.10), transparent 60%),
-    radial-gradient(900px 500px at -10% 0%, rgba(109,114,246,0.10), transparent 55%),
-    var(--bg);
-  color: var(--t1);
-  font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.5;
-  letter-spacing: -0.01em;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* NAV */
-.nav {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  padding: 0 22px;
-  gap: 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surf);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  flex-shrink: 0;
-  z-index: 10;
-  animation: fadeDown .5s var(--ease) both;
-}
-
-.logo {
-  font-family: var(--mono);
-  font-size: 14px;
-  font-weight: 600;
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.4px;
-  user-select: none;
-}
-.logo em { color: var(--t3); font-style: normal; }
-
-.nav-spacer { flex: 1; }
-
-.nav-badge {
-  font-size: 10px;
-  font-family: var(--mono);
-  color: var(--t2);
-  background: var(--card);
-  padding: 4px 11px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nav-pill {
-  font-size: 9px;
-  font-family: var(--mono);
-  color: #c7c4ff;
-  background: var(--accent-dim);
-  border: 1px solid rgba(109,114,246,0.3);
-  padding: 3px 9px;
-  border-radius: 20px;
-  letter-spacing: 0.5px;
-}
-
-/* LAYOUT */
-.app {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  height: calc(100vh - 52px);
-}
-
-/* PANEL */
-.panel {
-  width: 304px;
-  min-width: 304px;
-  background: var(--surf);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-hi) transparent;
-  animation: fadeUp .5s var(--ease) .05s both;
-}
-.panel::-webkit-scrollbar { width: 8px; }
-.panel::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
-
-.section {
-  padding: 18px 16px;
-  border-bottom: 1px solid var(--border);
-  animation: fadeUp .5s var(--ease) both;
-}
-.section:nth-child(1) { animation-delay: .08s; }
-.section:nth-child(2) { animation-delay: .13s; }
-.section:nth-child(3) { animation-delay: .18s; }
-.section:nth-child(4) { animation-delay: .23s; }
-.section:last-child { border-bottom: none; }
-
-.sec-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.sec-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
-  color: var(--t2);
-  font-weight: 500;
-}
-.sec-badge {
-  font-family: var(--mono);
-  font-size: 9px;
-  color: #c7c4ff;
-  background: var(--accent-dim);
-  border: 1px solid rgba(109,114,246,0.25);
-  padding: 2px 7px;
-  border-radius: 20px;
-}
-.sec-badge.green {
-  color: var(--green);
-  background: var(--green-dim);
-  border-color: rgba(52,211,153,0.25);
-}
-.sec-badge.amber {
-  color: var(--amber);
-  background: var(--amber-dim);
-  border-color: rgba(251,191,36,0.25);
-}
-
-/* UPLOAD */
-.upload {
-  position: relative;
-  border: 1.5px dashed var(--border-hi);
-  border-radius: var(--r);
-  padding: 26px 14px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), transform var(--dur) var(--ease);
-  overflow: hidden;
-}
-.upload:hover, .upload.drag {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
-.upload:hover .upload-icon { transform: translateY(-2px) scale(1.05); border-color: var(--accent); }
-.upload.drag { transform: scale(1.01); }
-.upload:active { transform: scale(.99); }
-.upload input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  font-size: 0;
-}
-.upload-icon {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto 12px;
-  background: var(--card);
-  border: 1px solid var(--border-hi);
-  border-radius: var(--r-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
-}
-.upload p { font-size: 11px; color: var(--t2); line-height: 1.5; }
-.upload strong { color: var(--t1); font-weight: 500; }
-.upload-formats {
-  display: flex;
-  justify-content: center;
-  gap: 5px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.fmt-tag {
-  font-family: var(--mono);
-  font-size: 8.5px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: var(--card);
-  border: 1px solid var(--border-hi);
-  color: var(--t2);
-  letter-spacing: 0.3px;
-}
-
-/* FILE INFO */
-.file-info {
-  display: none;
-  background: var(--card);
-  border: 1px solid var(--border-hi);
-  border-radius: var(--r-sm);
-  padding: 10px 12px;
-  margin-top: 10px;
-  gap: 10px;
-  align-items: center;
-  animation: pop .28s var(--ease) both;
-}
-.file-info.show { display: flex; }
-.file-icon { font-size: 20px; flex-shrink: 0; }
-.file-meta { flex: 1; min-width: 0; }
-.file-name { font-size: 11px; color: var(--t1); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-size { font-size: 10px; color: var(--t3); font-family: var(--mono); margin-top: 1px; }
-.file-change {
-  font-size: 10px;
-  color: var(--t2);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 5px;
-  transition: color .15s, background .15s;
-  flex-shrink: 0;
-}
-.file-change:hover { color: var(--t1); background: var(--card-hi); }
-
-/* BLOCK SELECTION */
-.block-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-}
-.block-opt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 4px 7px;
-  border-radius: var(--r-sm);
-  border: 1.5px solid transparent;
-  cursor: pointer;
-  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-  background: var(--card);
-}
-.block-opt:hover { border-color: var(--border-hi); background: var(--card-hi); transform: translateY(-2px); }
-.block-opt:active { transform: translateY(0) scale(.97); }
-.block-opt.sel { border-color: var(--accent); background: var(--accent-dim); box-shadow: var(--glow); }
-.block-opt.sel .block-swatch { transform: scale(1.08); }
-.block-swatch {
-  width: 22px; height: 22px;
-  border-radius: 5px;
-  border: 1px solid rgba(255,255,255,0.12);
-  flex-shrink: 0;
-  box-shadow: inset 0 1px 2px rgba(255,255,255,0.18), 0 1px 3px rgba(0,0,0,0.35);
-  transition: transform var(--dur) var(--ease);
-}
-.block-name { font-size: 7.5px; color: var(--t2); text-align: center; line-height: 1.2; word-break: break-word; }
-.block-opt.sel .block-name { color: var(--t1); }
-
-/* CONTROLS */
-.ctrl-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.ctrl-label { font-size: 11px; color: var(--t2); min-width: 72px; }
-.ctrl-value { font-family: var(--mono); font-size: 11px; color: var(--accent); min-width: 40px; text-align: right; }
-
-input[type=range] {
-  display: block; width: 100%; height: 18px;
-  accent-color: var(--accent); cursor: pointer;
-  background: transparent; -webkit-appearance: none; padding: 0; margin: 0;
-}
-input[type=range]::-webkit-slider-runnable-track { height: 5px; background: var(--input); border: 1px solid var(--border-hi); border-radius: 6px; }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--grad); margin-top: -7px; cursor: pointer; border: 2px solid var(--bg); box-shadow: 0 0 0 1px rgba(109,114,246,0.7), 0 2px 8px rgba(109,114,246,0.4); transition: transform var(--dur) var(--ease); }
-input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.15); }
-
-.range-ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 8px; color: var(--t3); padding: 0 2px; margin-top: 2px; }
-
-.input-field {
-  width: 100%;
-  background: var(--input); border: 1px solid var(--border-hi);
-  border-radius: var(--r-sm); color: var(--t1);
-  font-family: var(--mono); font-size: 11px;
-  padding: 7px 10px; outline: none;
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-}
-.input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
-
-/* SWITCH */
-.switch { display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
-.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
-.switch-track { position: relative; width: 38px; height: 21px; flex-shrink: 0; background: var(--input); border: 1px solid var(--border-hi); border-radius: 999px; transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease); }
-.switch-thumb { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #aeb4cc; box-shadow: 0 1px 3px rgba(0,0,0,0.4); transition: transform var(--dur) var(--ease), background var(--dur) var(--ease); }
-.switch input:checked + .switch-track { background: var(--grad); border-color: transparent; }
-.switch input:checked + .switch-track .switch-thumb { transform: translateX(17px); background: #fff; }
-.switch-label { font-size: 11px; color: var(--t2); transition: color var(--dur); }
-.switch input:checked ~ .switch-label { color: var(--t1); }
-
-/* WORKSPACE */
-.workspace {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: fadeUp .5s var(--ease) .1s both;
-}
-
-/* 3D VIEWER */
-.viewer-area {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(99,102,241,0.04), transparent 60%),
-    repeating-conic-gradient(rgba(255,255,255,0.015) 0% 25%, transparent 0% 50%) 0 0/20px 20px;
-  background-color: var(--bg);
-}
-
-#threeCanvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-/* EMPTY STATE */
-.empty-state {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  text-align: center;
-  color: var(--t3);
-  pointer-events: none;
-  user-select: none;
-  z-index: 3;
-  animation: fadeIn .5s var(--ease) both;
-}
-@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-.empty-icon {
-  width: 68px; height: 68px;
-  margin: 0 auto 18px;
-  background: linear-gradient(160deg, var(--card-hi), var(--card));
-  border: 1px solid var(--border-hi);
-  border-radius: 18px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 28px;
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
-  animation: float 3.4s ease-in-out infinite;
-}
-.empty-state h3 { font-size: 14px; color: var(--t2); font-weight: 500; margin-bottom: 4px; }
-.empty-state p { font-size: 12px; }
-
-/* LOADING OVERLAY */
-.loading-overlay {
-  display: none;
-  position: absolute;
-  inset: 0;
-  background: rgba(7,8,11,0.85);
-  backdrop-filter: blur(6px);
-  z-index: 20;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-.loading-overlay.show { display: flex; }
-.spinner {
-  width: 36px; height: 36px;
-  border: 3px solid var(--border-hi);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-}
-.loading-text { font-family: var(--mono); font-size: 12px; color: var(--t2); }
-.loading-sub { font-size: 10px; color: var(--t3); font-family: var(--mono); }
-
-/* VOXEL PROGRESS */
-.voxel-bar-wrap {
-  width: 200px;
-  height: 4px;
-  background: var(--border-hi);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.voxel-bar {
-  height: 100%;
-  background: var(--grad);
-  width: 0%;
-  transition: width .1s;
-  border-radius: 4px;
-}
-
-/* VIEWER CONTROLS OVERLAY */
-.viewer-hud {
-  position: absolute;
-  top: 14px; right: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 5;
-}
-.hud-btn {
-  width: 32px; height: 32px;
-  background: rgba(16,18,26,0.82);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--border-hi);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  color: var(--t2);
-  font-size: 14px;
-  transition: color .15s, border-color .15s, background .15s;
-  user-select: none;
-}
-.hud-btn:hover { color: var(--t1); border-color: var(--accent); background: rgba(109,114,246,0.15); }
-.hud-btn title { display: none; }
-
-/* VOXEL COUNT BADGE */
-.viewer-stats {
-  position: absolute;
-  bottom: 14px; left: 14px;
-  display: flex;
-  gap: 8px;
-  z-index: 5;
-}
-.vstats-pill {
-  background: rgba(16,18,26,0.82);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--border-hi);
-  border-radius: 8px;
-  padding: 5px 10px;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--t2);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.vstats-pill span { color: var(--t1); font-weight: 500; }
-.vstats-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; box-shadow: 0 0 6px var(--accent); }
-
-/* OUTPUT BAR */
-.output-bar {
-  display: none;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 20px;
-  background: var(--surf);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  border-top: 1px solid var(--border);
-}
-.output-bar.show { display: flex; animation: fadeUp .35s var(--ease) both; }
-.out-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.out-stats { display: flex; gap: 16px; flex: 1; flex-wrap: wrap; }
-.stat { display: flex; flex-direction: column; gap: 1px; }
-.stat-label { font-family: var(--mono); font-size: 9px; color: var(--t3); letter-spacing: 0.8px; text-transform: uppercase; }
-.stat-val { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--t1); }
-.stat-val.accent { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.out-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.act-btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 9px 14px; border-radius: var(--r-sm);
-  border: 1px solid var(--border-hi);
-  background: var(--card); color: var(--t2);
-  font-family: var(--sans); font-size: 11px; font-weight: 500;
-  cursor: pointer;
-  transition: transform var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-  white-space: nowrap;
-}
-.act-btn:hover { color: var(--t1); background: var(--card-hi); transform: translateY(-1px); }
-.act-btn:active { transform: translateY(0) scale(.98); }
-.act-btn.primary { background: var(--grad); color: #fff; border-color: transparent; box-shadow: 0 4px 16px rgba(109,114,246,0.35); }
-.act-btn.primary:hover { box-shadow: 0 6px 22px rgba(109,114,246,0.5); filter: brightness(1.06); }
-.act-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
-
-/* TOAST */
-.toast {
-  position: fixed; bottom: 24px; right: 24px;
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(18,20,28,0.92);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-hi); color: var(--t1);
-  font-family: var(--mono); font-size: 11px; font-weight: 500;
-  padding: 10px 16px; border-radius: 12px;
-  transform: translateY(20px) scale(.96); opacity: 0;
-  transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
-  pointer-events: none; z-index: 999; box-shadow: var(--shadow);
-}
-.toast::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); flex-shrink: 0; }
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast.error::before { background: var(--red); box-shadow: 0 0 10px var(--red); }
-
-/* WARN */
-.warn {
-  display: none; align-items: center; gap: 6px;
-  background: var(--amber-dim); border: 1px solid rgba(251,191,36,0.3);
-  border-radius: var(--r-sm); padding: 8px 11px;
-  font-size: 10px; color: var(--amber); margin-top: 8px;
-  font-family: var(--mono);
-}
-.warn.show { display: flex; animation: pop .28s var(--ease) both; }
-
-/* MOBILE */
-@media (max-width: 768px) {
-  body { overflow: auto; }
-  .app { flex-direction: column; height: auto; overflow: visible; }
-  .panel { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); overflow: visible; }
-  .viewer-area { flex: none; height: 55vh; min-height: 280px; }
-  .out-row { flex-direction: column; align-items: flex-start; }
-  .out-actions { width: 100%; }
-  .act-btn { flex: 1; justify-content: center; }
-  .block-grid { grid-template-columns: repeat(5, 1fr); }
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reparador NVIDIA IA 3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%); color: white; font-family: 'Segoe UI', sans-serif; }
+        #ui-container { 
+            position: absolute; top: 20px; left: 20px; z-index: 10; 
+            background: rgba(15, 15, 30, 0.85); backdrop-filter: blur(12px);
+            padding: 24px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            width: 340px; border: 1px solid rgba(0,217,255,0.15);
+        }
+        h3 { margin-top: 0; font-size: 16px; color: #00d9ff; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+        h3::before { content: "◆"; color: #00d9ff; }
+        input[type="file"] { margin-bottom: 15px; width: 100%; color: #ddd; font-size: 12px; }
+        input[type="file"]::file-selector-button { background: rgba(0,217,255,0.15); color: #00d9ff; border: 1px solid rgba(0,217,255,0.3); padding: 6px 12px; border-radius: 5px; cursor: pointer; margin-right: 10px; font-weight: bold; }
+        button { width: 100%; padding: 12px; cursor: pointer; background: linear-gradient(135deg, #00d9ff, #0099cc); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; transition: all 0.25s; margin-bottom: 8px; }
+        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,217,255,0.4); }
+        button:disabled { background: #2a2a3a; cursor: not-allowed; color: #555; }
+        button.secondary { background: linear-gradient(135deg, #6b6bff, #4444cc); }
+        button.ai-btn { background: linear-gradient(135deg, #b46bff, #9444cc); }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        .control-group { margin-top: 18px; }
+        .control-group label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: #aaa; text-transform: uppercase; }
+        .control-group input[type="range"] { width: 100%; accent-color: #00d9ff; cursor: pointer; }
+        .value-display { color: #00d9ff; font-weight: bold; font-family: 'Courier New', monospace; }
+        .stats { margin-top: 20px; padding: 16px; background: rgba(0,0,0,0.4); border-radius: 10px; border-left: 3px solid #00d9ff; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .stat-label { color: #888; }
+        .stat-value { color: #00d9ff; font-weight: bold; font-family: 'Courier New', monospace; font-size: 14px; }
+        .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,10,20,0.95); padding: 30px 50px; border-radius: 14px; display: none; z-index: 100; border: 1px solid rgba(180,107,255,0.4); text-align: center; }
+        .loading.show { display: block; }
+        .loading-text { color: #fff; font-size: 14px; margin-top: 12px; }
+        .loading-spinner { width: 36px; height: 36px; border: 3px solid rgba(180,107,255,0.15); border-top-color: #b46bff; border-radius: 50%; margin: 0 auto; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
-
-<nav class="nav">
-  <div class="logo">block<em>.io</em></div>
-  <div class="nav-pill">3D → Roblox</div>
-  <div class="nav-spacer"></div>
-  <div class="nav-badge" id="navBadge">Sin modelo</div>
-</nav>
-
-<div class="app">
-
-  <aside class="panel">
-
-    <!-- UPLOAD -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-label">Modelo 3D</div>
-        <div class="sec-badge" id="fmtBadge">FBX / GLB / OBJ</div>
-      </div>
-      <div class="upload" id="uploadZone">
-        <input type="file" accept=".fbx,.glb,.gltf,.obj,.mtl" id="fileInput">
-        <div class="upload-icon">📦</div>
-        <p><strong>Subir modelo 3D</strong> o arrastrar aquí</p>
-        <div class="upload-formats">
-          <span class="fmt-tag">FBX</span>
-          <span class="fmt-tag">GLB</span>
-          <span class="fmt-tag">GLTF</span>
-          <span class="fmt-tag">OBJ</span>
+    <div id="ui-container">
+        <h3>Reparador NVIDIA IA 3D</h3>
+        <input type="file" id="file-input" accept=".glb,.gltf">
+        
+        <div class="control-group">
+            <label>Ángulo de fusión <span class="value-display" id="angle-val">15°</span></label>
+            <input type="range" id="angle-slider" min="1" max="45" step="1" value="15">
         </div>
-      </div>
-      <div class="file-info" id="fileInfo">
-        <div class="file-icon" id="fileIcon">📦</div>
-        <div class="file-meta">
-          <div class="file-name" id="fileName">modelo.glb</div>
-          <div class="file-size" id="fileSize">—</div>
+        <div class="control-group">
+            <label>Grosor base <span class="value-display" id="thickness-val">0.05</span></label>
+            <input type="range" id="thickness-slider" min="0.01" max="0.3" step="0.01" value="0.05">
         </div>
-        <button class="file-change" onclick="document.getElementById('fileInput').click()">Cambiar</button>
-      </div>
+
+        <button id="ai-btn" class="ai-btn" disabled>⚡ REPARAR Y FUSIONAR CON IA</button>
+        <button id="build-btn" disabled>CONSTRUIR CÁSCARA BASE</button>
+        <button id="toggle-btn" class="secondary" disabled>VER MODELO ORIGINAL</button>
+        
+        <div class="stats">
+            <div class="stat-row"><span class="stat-label">Bloques actuales:</span><span class="stat-value" id="block-count">0</span></div>
+            <div class="stat-row"><span class="stat-label">Bloques tras IA:</span><span class="stat-value" id="ai-block-count">0</span></div>
+            <div class="stat-row"><span class="stat-label">Estado IA:</span><span class="stat-value" id="status-info" style="font-size: 12px;">Esperando...</span></div>
+        </div>
     </div>
-
-    <!-- BLOQUES -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-label">Bloque a usar</div>
-        <div class="sec-badge" id="selBadge">1 sel.</div>
-      </div>
-      <div class="block-grid" id="blockGrid"></div>
+    
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Analizando geometría...</div>
     </div>
-
-    <!-- VOXELIZACIÓN -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-label">Voxelización</div>
-        <div class="ctrl-value" id="resLabel" style="font-size:11px">32</div>
-      </div>
-      <div class="ctrl-row" style="margin-bottom:4px">
-        <span class="ctrl-label">Resolución</span>
-      </div>
-      <input type="range" id="resSlider" min="4" max="96" step="2" value="24">
-      <div class="range-ticks"><span>4</span><span>24</span><span>48</span><span>72</span><span>96</span></div>
-
-      <div style="margin-top:14px;display:flex;flex-direction:column;gap:6px;">
-        <div style="font-size:9px;font-family:var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:2px;">Tamaño de bloque (studs)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-          <div>
-            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">X</div>
-            <input id="sizeX" type="number" value="2" min="0.5" max="20" step="0.5" class="input-field" style="text-align:center;">
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">Y</div>
-            <input id="sizeY" type="number" value="2" min="0.5" max="20" step="0.5" class="input-field" style="text-align:center;">
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">Z</div>
-            <input id="sizeZ" type="number" value="2" min="0.5" max="20" step="0.5" class="input-field" style="text-align:center;">
-          </div>
-        </div>
-        <label class="switch" style="margin-top:4px;">
-          <input type="checkbox" id="linkSize" checked>
-          <span class="switch-track"><span class="switch-thumb"></span></span>
-          <span class="switch-label">Vincular X=Y=Z</span>
-        </label>
-      </div>
-
-      <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-        <label class="switch">
-          <input type="checkbox" id="useColorToggle" checked>
-          <span class="switch-track"><span class="switch-thumb"></span></span>
-          <span class="switch-label">Usar colores del modelo</span>
-        </label>
-        <label class="switch">
-          <input type="checkbox" id="fillToggle">
-          <span class="switch-track"><span class="switch-thumb"></span></span>
-          <span class="switch-label">Solo superficie (más rápido)</span>
-        </label>
-      </div>
-      <div class="warn" id="warnBig">⚠ Resolución alta puede generar miles de bloques.</div>
-    </div>
-
-    <!-- ZONA -->
-    <div class="section">
-      <div class="sec-head">
-        <div class="sec-label">Posición en zona</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div>
-          <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">Offset X (studs)</div>
-          <input id="offX" type="number" value="0" step="1" class="input-field" style="text-align:center;">
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">Offset Y (studs)</div>
-          <input id="offY" type="number" value="0" step="1" class="input-field" style="text-align:center;">
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">Offset Z (studs)</div>
-          <input id="offZ" type="number" value="0" step="1" class="input-field" style="text-align:center;">
-        </div>
-        <div>
-          <div style="font-size:9px;color:var(--t3);font-family:var(--mono);margin-bottom:3px;">Rot Y (°)</div>
-          <input id="rotY" type="number" value="0" step="15" class="input-field" style="text-align:center;">
-        </div>
-      </div>
-    </div>
-
-    <!-- GENERAR -->
-    <div class="section">
-      <button class="act-btn primary" id="btnGenerate" style="width:100%;justify-content:center;padding:12px;" disabled>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Voxelizar modelo
-      </button>
-    </div>
-
-  </aside>
-
-  <div class="workspace">
-    <div class="viewer-area" id="viewerArea">
-      <canvas id="threeCanvas"></canvas>
-
-      <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner"></div>
-        <div class="loading-text" id="loadingText">Cargando modelo…</div>
-        <div class="loading-sub" id="loadingSub"></div>
-        <div class="voxel-bar-wrap" id="barWrap" style="display:none">
-          <div class="voxel-bar" id="voxelBar"></div>
-        </div>
-      </div>
-
-      <div class="empty-state" id="empty">
-        <div class="empty-icon">📦</div>
-        <h3>Sube un modelo 3D para empezar</h3>
-        <p>Compatible con FBX, GLB, GLTF y OBJ</p>
-      </div>
-
-      <div class="viewer-hud" id="viewerHud" style="display:none">
-        <div class="hud-btn" id="btnReset" title="Resetear cámara">⟳</div>
-        <div class="hud-btn" id="btnWire" title="Wireframe">⬡</div>
-        <div class="hud-btn" id="btnVox" title="Vista voxels">🧱</div>
-      </div>
-
-      <div class="viewer-stats" id="viewerStats" style="display:none">
-        <div class="vstats-pill"><div class="vstats-dot"></div>Vértices <span id="statVerts">—</span></div>
-        <div class="vstats-pill"><div class="vstats-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>Triángulos <span id="statTris">—</span></div>
-      </div>
-    </div>
-
-    <div class="output-bar" id="outputBar">
-      <div class="out-row">
-        <div class="out-stats" id="outStats"></div>
-        <div class="out-actions">
-          <button class="act-btn primary" id="btnCopy" onclick="copyJSON()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Copiar JSON
-          </button>
-          <button class="act-btn" onclick="downloadJSON()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Descargar JSON
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast">Copiado al portapapeles</div>
-
-<!-- Three.js + loaders desde CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-<script>
-/* ═══════════════════════════════════════════════
-   BLOQUE DE DATOS — mismo diccionario que builds.lua
-═══════════════════════════════════════════════ */
-const BLOCKS = {
-  PlasticBlock:  {r:.655,g:.369,b:.608, mat:"SmoothPlastic", health:1},
-  WoodBlock:     {r:.886,g:.608,b:.251, mat:"WoodPlanks",    health:1},
-  MetalBlock:    {r:.584,g:.475,b:.467, mat:"Metal",         health:4},
-  StoneBlock:    {r:.639,g:.635,b:.647, mat:"Cobblestone",   health:2},
-  GlassBlock:    {r:.502,g:.733,b:.859, mat:"Glass",         health:1},
-  GoldBlock:     {r:1,   g:.843,b:0,   mat:"Glass",         health:9},
-  IceBlock:      {r:.502,g:.733,b:.859, mat:"Ice",           health:3},
-  MarbleBlock:   {r:.929,g:.918,b:.918, mat:"Marble",        health:6},
-  GrassBlock:    {r:.157,g:.498,b:.278, mat:"Grass",         health:1},
-  SandBlock:     {r:.992,g:.918,b:.553, mat:"Sand",          health:2},
-  CoalBlock:     {r:.106,g:.165,b:.208, mat:"Slate",         health:5},
-  BrickBlock:    {r:.592,g:0,   b:0,   mat:"Brick",         health:5},
-  ObsidianBlock: {r:.05, g:.02, b:.06,  mat:"Granite",       health:8},
-  TitaniumBlock: {r:.914,g:.855,b:.855, mat:"DiamondPlate",  health:7},
-  RustedBlock:   {r:.51, g:.28, b:.15,  mat:"CorrodedMetal", health:3},
-  ConcreteBlock: {r:.639,g:.635,b:.647, mat:"Concrete",      health:5},
-  FabricBlock:   {r:.482,g:0,   b:.482, mat:"Fabric",        health:1},
-};
-const BNAMES = Object.keys(BLOCKS);
-
-/* ═══════════════════════════════════════════════
-   ESTADO GLOBAL
-═══════════════════════════════════════════════ */
-let selectedBlock = 'PlasticBlock';
-let loadedModel = null;  // THREE.Group
-let outJSON = null;
-let voxelMesh = null;
-let showVoxelView = false;
-let wireframeOn = false;
-
-const p3 = n => Math.round(n * 1000) / 1000;
-const rgb = (r,g,b) => `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
-
-/* ═══════════════════════════════════════════════
-   THREE.JS — ESCENA VISOR
-═══════════════════════════════════════════════ */
-const canvas3 = document.getElementById('threeCanvas');
-const renderer = new THREE.WebGLRenderer({ canvas: canvas3, antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.outputEncoding = THREE.sRGBEncoding;
-
-const scene = new THREE.Scene();
-scene.background = null;
-
-const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 10000);
-camera.position.set(5, 4, 8);
-camera.lookAt(0, 0, 0);
-
-// Iluminación
-const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-scene.add(ambient);
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-dirLight.position.set(5, 10, 5);
-dirLight.castShadow = true;
-scene.add(dirLight);
-const fillLight = new THREE.DirectionalLight(0x8899ff, 0.3);
-fillLight.position.set(-5, -2, -5);
-scene.add(fillLight);
-
-// Grid helper
-const gridHelper = new THREE.GridHelper(20, 20, 0x2a2d3e, 0x1a1d2a);
-scene.add(gridHelper);
-
-// Orbit controls manual (sin importar OrbitControls)
-(function setupOrbit(){
-  let dragging = false, rightDrag = false;
-  let lastX = 0, lastY = 0;
-  let theta = 0.6, phi = 0.8, radius = 12;
-  let targetX = 0, targetY = 0, targetZ = 0;
-
-  function updateCamera(){
-    camera.position.x = targetX + radius * Math.sin(phi) * Math.sin(theta);
-    camera.position.y = targetY + radius * Math.cos(phi);
-    camera.position.z = targetZ + radius * Math.sin(phi) * Math.cos(theta);
-    camera.lookAt(targetX, targetY, targetZ);
-  }
-  updateCamera();
-
-  const el = canvas3;
-  el.addEventListener('mousedown', e => {
-    if (e.button === 0) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
-    if (e.button === 2) { rightDrag = true; lastX = e.clientX; lastY = e.clientY; e.preventDefault(); }
-  });
-  el.addEventListener('contextmenu', e => e.preventDefault());
-  window.addEventListener('mousemove', e => {
-    if (dragging){
-      const dx = (e.clientX - lastX) * 0.007;
-      const dy = (e.clientY - lastY) * 0.007;
-      theta -= dx;
-      phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi + dy));
-      lastX = e.clientX; lastY = e.clientY;
-      updateCamera();
-    }
-    if (rightDrag){
-      const dx = (e.clientX - lastX) * 0.01;
-      const dy = (e.clientY - lastY) * 0.01;
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(camera.position, new THREE.Vector3(targetX,targetY,targetZ)), camera.up).normalize();
-      targetX -= right.x * dx * radius * 0.3;
-      targetZ -= right.z * dx * radius * 0.3;
-      targetY += dy * radius * 0.3;
-      lastX = e.clientX; lastY = e.clientY;
-      updateCamera();
-    }
-  });
-  window.addEventListener('mouseup', () => { dragging = false; rightDrag = false; });
-  el.addEventListener('wheel', e => {
-    radius = Math.max(0.5, Math.min(500, radius * (1 + e.deltaY * 0.001)));
-    updateCamera(); e.preventDefault();
-  }, { passive: false });
-
-  // Touch
-  let touches = [];
-  let lastPinchDist = 0;
-  el.addEventListener('touchstart', e => {
-    touches = Array.from(e.touches);
-    if (touches.length === 1){ lastX = touches[0].clientX; lastY = touches[0].clientY; dragging = true; }
-    if (touches.length === 2){ dragging = false; lastPinchDist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY); }
-    e.preventDefault();
-  }, { passive: false });
-  el.addEventListener('touchmove', e => {
-    const t = Array.from(e.touches);
-    if (t.length === 1 && dragging){
-      const dx = (t[0].clientX - lastX) * 0.007;
-      const dy = (t[0].clientY - lastY) * 0.007;
-      theta -= dx; phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi + dy));
-      lastX = t[0].clientX; lastY = t[0].clientY;
-      updateCamera();
-    }
-    if (t.length === 2){
-      const dist = Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-      radius = Math.max(0.5, Math.min(500, radius * (lastPinchDist / dist)));
-      lastPinchDist = dist;
-      updateCamera();
-    }
-    e.preventDefault();
-  }, { passive: false });
-  el.addEventListener('touchend', () => { dragging = false; touches = []; });
-
-  // Reset
-  document.getElementById('btnReset').addEventListener('click', () => {
-    if (!loadedModel) return;
-    const box = new THREE.Box3().setFromObject(loadedModel);
-    const size = box.getSize(new THREE.Vector3());
-    const maxS = Math.max(size.x, size.y, size.z);
-    radius = maxS * 2.2;
-    theta = 0.6; phi = 0.8;
-    const center = box.getCenter(new THREE.Vector3());
-    targetX = center.x; targetY = center.y; targetZ = center.z;
-    updateCamera();
-  });
-
-  window._orbitSetRadius = (r) => { radius = r; updateCamera(); };
-  window._orbitSetTarget = (x,y,z) => { targetX=x; targetY=y; targetZ=z; updateCamera(); };
-})();
-
-// Wireframe toggle
-document.getElementById('btnWire').addEventListener('click', () => {
-  wireframeOn = !wireframeOn;
-  document.getElementById('btnWire').style.color = wireframeOn ? 'var(--accent)' : '';
-  if (loadedModel){
-    loadedModel.traverse(obj => {
-      if (obj.isMesh && obj.material){
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        mats.forEach(m => { m.wireframe = wireframeOn; });
-      }
-    });
-  }
-});
-
-// Voxel view toggle
-document.getElementById('btnVox').addEventListener('click', () => {
-  showVoxelView = !showVoxelView;
-  document.getElementById('btnVox').style.color = showVoxelView ? 'var(--accent)' : '';
-  if (loadedModel) loadedModel.visible = !showVoxelView;
-  if (voxelMesh) voxelMesh.visible = showVoxelView;
-});
-
-// Render loop
-(function loop(){
-  requestAnimationFrame(loop);
-  const area = document.getElementById('viewerArea');
-  const w = area.clientWidth, h = area.clientHeight;
-  if (renderer.domElement.width !== w || renderer.domElement.height !== h){
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  }
-  renderer.render(scene, camera);
-})();
-
-/* ═══════════════════════════════════════════════
-   LOADERS: OBJ, GLB/GLTF, FBX
-   Cargados dinámicamente desde CDN
-═══════════════════════════════════════════════ */
-function loadScript(url){
-  return new Promise((res, rej) => {
-    if (document.querySelector(`script[src="${url}"]`)) { res(); return; }
-    const s = document.createElement('script');
-    s.src = url; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
-
-const THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/';
-
-async function ensureLoader(fmt){
-  if (fmt === 'obj'){
-    if (!window._OBJLoaderReady){
-      await loadScript(THREE_CDN + 'examples/js/loaders/OBJLoader.js');
-      window._OBJLoaderReady = true;
-    }
-  } else if (fmt === 'glb' || fmt === 'gltf'){
-    if (!window._GLTFLoaderReady){
-      await loadScript(THREE_CDN + 'examples/js/loaders/GLTFLoader.js');
-      window._GLTFLoaderReady = true;
-    }
-  } else if (fmt === 'fbx'){
-    if (!window._FBXLoaderReady){
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/libs/fflate.min.js');
-      await loadScript(THREE_CDN + 'examples/js/loaders/FBXLoader.js');
-      window._FBXLoaderReady = true;
-    }
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   UPLOAD / CARGA DE ARCHIVO
-═══════════════════════════════════════════════ */
-const uploadZone = document.getElementById('uploadZone');
-const fileInput  = document.getElementById('fileInput');
-
-uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
-uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
-uploadZone.addEventListener('drop', e => {
-  e.preventDefault(); uploadZone.classList.remove('drag');
-  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-
-async function handleFile(file){
-  const ext = file.name.split('.').pop().toLowerCase();
-  const supported = ['fbx','glb','gltf','obj'];
-  if (!supported.includes(ext)){
-    showToast('Formato no soportado: .' + ext, true);
-    return;
-  }
-
-  document.getElementById('empty').style.display = 'none';
-  setLoading(true, 'Cargando ' + ext.toUpperCase() + '…', '');
-  outJSON = null;
-  document.getElementById('outputBar').classList.remove('show');
-
-  // UI
-  const icons = { fbx:'📐', glb:'🔷', gltf:'🔷', obj:'📋' };
-  document.getElementById('fileIcon').textContent = icons[ext] || '📦';
-  document.getElementById('fileName').textContent = file.name;
-  document.getElementById('fileSize').textContent = formatBytes(file.size);
-  document.getElementById('fileInfo').classList.add('show');
-  document.getElementById('navBadge').textContent = file.name.length > 26 ? file.name.slice(0,24)+'…' : file.name;
-  const fmtBadge = document.getElementById('fmtBadge');
-  fmtBadge.textContent = ext.toUpperCase();
-  fmtBadge.className = 'sec-badge green';
-
-  try {
-    await ensureLoader(ext);
-    const url = URL.createObjectURL(file);
-    const model = await loadModel(url, ext);
-    URL.revokeObjectURL(url);
-
-    // Remover modelo anterior
-    if (loadedModel){ scene.remove(loadedModel); }
-    if (voxelMesh){ scene.remove(voxelMesh); voxelMesh = null; }
-
-    loadedModel = model;
-    centerAndNormalize(loadedModel);
-    scene.add(loadedModel);
-
-    // Contar stats
-    let verts = 0, tris = 0;
-    loadedModel.traverse(obj => {
-      if (obj.isMesh && obj.geometry){
-        const pos = obj.geometry.attributes.position;
-        if (pos) verts += pos.count;
-        const idx = obj.geometry.index;
-        tris += idx ? idx.count / 3 : (pos ? pos.count / 3 : 0);
-      }
-    });
-    document.getElementById('statVerts').textContent = verts.toLocaleString();
-    document.getElementById('statTris').textContent = Math.round(tris).toLocaleString();
-    document.getElementById('viewerHud').style.display = 'flex';
-    document.getElementById('viewerStats').style.display = 'flex';
-
-    // Fit camera
-    const box = new THREE.Box3().setFromObject(loadedModel);
-    const size = box.getSize(new THREE.Vector3());
-    const maxS = Math.max(size.x, size.y, size.z);
-    window._orbitSetRadius(maxS * 2.2);
-    const center = box.getCenter(new THREE.Vector3());
-    window._orbitSetTarget(center.x, center.y, center.z);
-
-    document.getElementById('btnGenerate').disabled = false;
-    setLoading(false);
-    showVoxelView = false;
-    document.getElementById('btnVox').style.color = '';
-    wireframeOn = false;
-    document.getElementById('btnWire').style.color = '';
-    if (loadedModel) loadedModel.traverse(obj => {
-      if (obj.isMesh && obj.material){
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        mats.forEach(m => m.wireframe = false);
-      }
-    });
-
-  } catch(err){
-    setLoading(false);
-    document.getElementById('empty').style.display = '';
-    showToast('Error cargando modelo: ' + err.message, true);
-    console.error(err);
-  }
-}
-
-function loadModel(url, ext){
-  return new Promise((resolve, reject) => {
-    if (ext === 'obj'){
-      const loader = new THREE.OBJLoader();
-      loader.load(url, resolve, undefined, reject);
-    } else if (ext === 'glb' || ext === 'gltf'){
-      const loader = new THREE.GLTFLoader();
-      loader.load(url, gltf => resolve(gltf.scene), undefined, reject);
-    } else if (ext === 'fbx'){
-      const loader = new THREE.FBXLoader();
-      loader.load(url, resolve, undefined, reject);
-    } else {
-      reject(new Error('Formato desconocido'));
-    }
-  });
-}
-
-function centerAndNormalize(group){
-  const box = new THREE.Box3().setFromObject(group);
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z);
-  if (maxDim === 0) return;
-  const scale = 10 / maxDim;
-  group.scale.setScalar(scale);
-  box.setFromObject(group);
-  const newCenter = box.getCenter(new THREE.Vector3());
-  const newMin = box.min;
-  group.position.x -= newCenter.x;
-  group.position.y -= newMin.y;
-  group.position.z -= newCenter.z;
-}
-
-/* ═══════════════════════════════════════════════
-   BLOCK GRID UI
-═══════════════════════════════════════════════ */
-(function buildGrid(){
-  const g = document.getElementById('blockGrid');
-  BNAMES.forEach(name => {
-    const b = BLOCKS[name];
-    const el = document.createElement('div');
-    el.className = 'block-opt' + (name === selectedBlock ? ' sel' : '');
-    el.id = 'go-' + name;
-    el.innerHTML = `<div class="block-swatch" style="background:${rgb(b.r,b.g,b.b)}"></div><div class="block-name">${name}</div>`;
-    el.onclick = () => {
-      selectedBlock = name;
-      document.querySelectorAll('.block-opt').forEach(e => e.classList.remove('sel'));
-      el.classList.add('sel');
-      document.getElementById('selBadge').textContent = name.replace('Block','');
-    };
-    g.appendChild(el);
-  });
-})();
-
-/* ═══════════════════════════════════════════════
-   SIZE LINK
-═══════════════════════════════════════════════ */
-const sXEl = document.getElementById('sizeX');
-const sYEl = document.getElementById('sizeY');
-const sZEl = document.getElementById('sizeZ');
-const linkEl = document.getElementById('linkSize');
-
-function onSizeChange(changed){
-  if (linkEl.checked){
-    const v = changed.value;
-    if (changed !== sXEl) sXEl.value = v;
-    if (changed !== sYEl) sYEl.value = v;
-    if (changed !== sZEl) sZEl.value = v;
-  }
-}
-sXEl.addEventListener('input', () => onSizeChange(sXEl));
-sYEl.addEventListener('input', () => onSizeChange(sYEl));
-sZEl.addEventListener('input', () => onSizeChange(sZEl));
-
-/* ═══════════════════════════════════════════════
-   RESOLUCIÓN
-═══════════════════════════════════════════════ */
-const resSlider = document.getElementById('resSlider');
-resSlider.addEventListener('input', function(){
-  document.getElementById('resLabel').textContent = this.value;
-  const v = parseInt(this.value);
-  document.getElementById('warnBig').classList.toggle('show', v > 60);
-});
-
-/* ═══════════════════════════════════════════════
-   VOXELIZACIÓN — NÚCLEO
-   Convierte la geometría 3D en vóxeles y genera
-   el JSON en el formato exacto de builds.lua
-═══════════════════════════════════════════════ */
-document.getElementById('btnGenerate').addEventListener('click', async () => {
-  if (!loadedModel){ showToast('Carga un modelo primero', true); return; }
-
-  const res     = parseInt(resSlider.value);
-  const BSX     = Math.max(0.5, parseFloat(sXEl.value) || 2);
-  const BSY     = Math.max(0.5, parseFloat(sYEl.value) || 2);
-  const BSZ     = Math.max(0.5, parseFloat(sZEl.value) || 2);
-  const offX    = parseFloat(document.getElementById('offX').value) || 0;
-  const offY    = parseFloat(document.getElementById('offY').value) || 0;
-  const offZ    = parseFloat(document.getElementById('offZ').value) || 0;
-  const rotYDeg = parseFloat(document.getElementById('rotY').value) || 0;
-  const useCol  = document.getElementById('useColorToggle').checked;
-  const surfOnly = document.getElementById('fillToggle').checked;
-
-  setLoading(true, 'Voxelizando…', 'Recolectando geometría');
-  document.getElementById('barWrap').style.display = 'block';
-  document.getElementById('voxelBar').style.width = '0%';
-
-  // Pequeño delay para que el loading se muestre
-  await sleep(20);
-
-  try {
-    const result = await voxelize(loadedModel, res, BSX, BSY, BSZ, offX, offY, offZ, rotYDeg, useCol, surfOnly);
-    buildVoxelPreview(result.voxels, BSX, BSY, BSZ);
-    buildOutputJSON(result.voxels, BSX, BSY, BSZ);
-    setLoading(false);
-    document.getElementById('outputBar').classList.add('show');
-
-    const total = result.voxels.length;
-    document.getElementById('outStats').innerHTML = `
-      <div class="stat"><span class="stat-label">Bloque</span><span class="stat-val">${selectedBlock}</span></div>
-      <div class="stat"><span class="stat-label">Vóxeles</span><span class="stat-val accent">${total.toLocaleString()}</span></div>
-      <div class="stat"><span class="stat-label">Res.</span><span class="stat-val">${res}³</span></div>
-    `;
-
-    // Cambiar a vista vóxel automáticamente
-    showVoxelView = true;
-    document.getElementById('btnVox').style.color = 'var(--accent)';
-    if (loadedModel) loadedModel.visible = false;
-    if (voxelMesh) voxelMesh.visible = true;
-
-  } catch(err){
-    setLoading(false);
-    showToast('Error al voxelizar: ' + err.message, true);
-    console.error(err);
-  }
-});
-
-function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-
-/* ═══════════════════════════════════════════════
-   ALGORITMO DE VOXELIZACIÓN
-   Usa raycasting para detectar si cada celda
-   del grid está dentro/fuera o toca la superficie
-═══════════════════════════════════════════════ */
-async function voxelize(group, res, BSX, BSY, BSZ, offX, offY, offZ, rotYDeg, useColor, surfOnly){
-  // 1. Obtener bounding box del modelo (ya normalizado a 10 unidades)
-  const box = new THREE.Box3().setFromObject(group);
-  const size = box.getSize(new THREE.Vector3());
-  const min  = box.min.clone();
-
-  const cellW = size.x / res;
-  const cellH = size.y / res;
-  const cellD = size.z / res;
-
-  // 2. Extraer triángulos + colores del modelo
-  const triangles = [];
-  group.traverse(obj => {
-    if (!obj.isMesh || !obj.geometry) return;
-    const geo = obj.geometry.clone();
-    obj.updateWorldMatrix(true, false);
-    geo.applyMatrix4(obj.matrixWorld);
-
-    if (!geo.attributes.position) return;
-    const pos = geo.attributes.position;
-    const idx = geo.index;
-    const colorAttr = geo.attributes.color;
-    const uv = geo.attributes.uv;
-
-    // Intentar extraer color de material
-    let matColor = null;
-    if (obj.material){
-      const m = Array.isArray(obj.material) ? obj.material[0] : obj.material;
-      if (m && m.color) matColor = { r: m.color.r, g: m.color.g, b: m.color.b };
-    }
-
-    const triCount = idx ? idx.count / 3 : pos.count / 3;
-    for (let t = 0; t < triCount; t++){
-      const ia = idx ? idx.getX(t*3)   : t*3;
-      const ib = idx ? idx.getX(t*3+1) : t*3+1;
-      const ic = idx ? idx.getX(t*3+2) : t*3+2;
-      const a = new THREE.Vector3(pos.getX(ia), pos.getY(ia), pos.getZ(ia));
-      const b = new THREE.Vector3(pos.getX(ib), pos.getY(ib), pos.getZ(ib));
-      const c = new THREE.Vector3(pos.getX(ic), pos.getY(ic), pos.getZ(ic));
-
-      // Color por vértice > material color > blanco
-      let cr = 1, cg = 1, cb = 1;
-      if (colorAttr){
-        cr = colorAttr.getX(ia); cg = colorAttr.getY(ia); cb = colorAttr.getZ(ia);
-      } else if (matColor){
-        cr = matColor.r; cg = matColor.g; cb = matColor.b;
-      }
-      triangles.push({ a, b, c, cr: p3(cr), cg: p3(cg), cb: p3(cb) });
-    }
-  });
-
-  if (triangles.length === 0) throw new Error('El modelo no tiene geometría visible');
-
-  // 3. Construir accel structure: por cada celda verificar si toca un triángulo
-  const voxels = [];
-  const total = res * res * res;
-  let done = 0;
-
-  // Para la intersección usamos raycasting por slice
-  // Construimos un Raycaster en 3 ejes para detectar superficie e interior
-  const raycaster = new THREE.Raycaster();
-
-  // Merge de geometría para raycasting rápido
-  const meshes = [];
-  group.traverse(obj => { if (obj.isMesh) meshes.push(obj); });
-
-  // Voxelización por superficie: para cada triángulo, marcar las celdas que toca
-  const occupied = new Map(); // key -> {cx,cy,cz,cr,cg,cb}
-
-  const CHUNK = 500;
-  for (let ti = 0; ti < triangles.length; ti++){
-    if (ti % CHUNK === 0){
-      const pct = Math.round(ti / triangles.length * 100);
-      document.getElementById('voxelBar').style.width = pct + '%';
-      document.getElementById('loadingSub').textContent = `Tri ${ti.toLocaleString()} / ${triangles.length.toLocaleString()}`;
-      await sleep(0);
-    }
-
-    const { a, b, c, cr, cg, cb } = triangles[ti];
-    // AABB del triángulo
-    const triMin = new THREE.Vector3(
-      Math.min(a.x,b.x,c.x), Math.min(a.y,b.y,c.y), Math.min(a.z,b.z,c.z)
-    );
-    const triMax = new THREE.Vector3(
-      Math.max(a.x,b.x,c.x), Math.max(a.y,b.y,c.y), Math.max(a.z,b.z,c.z)
-    );
-
-    const cxMin = Math.max(0, Math.floor((triMin.x - min.x) / cellW) - 1);
-    const cyMin = Math.max(0, Math.floor((triMin.y - min.y) / cellH) - 1);
-    const czMin = Math.max(0, Math.floor((triMin.z - min.z) / cellD) - 1);
-    const cxMax = Math.min(res-1, Math.ceil((triMax.x - min.x) / cellW) + 1);
-    const cyMax = Math.min(res-1, Math.ceil((triMax.y - min.y) / cellH) + 1);
-    const czMax = Math.min(res-1, Math.ceil((triMax.z - min.z) / cellD) + 1);
-
-    for (let cx = cxMin; cx <= cxMax; cx++)
-    for (let cy = cyMin; cy <= cyMax; cy++)
-    for (let cz = czMin; cz <= czMax; cz++){
-      // Centro de la celda
-      const cellCx = min.x + (cx + 0.5) * cellW;
-      const cellCy = min.y + (cy + 0.5) * cellH;
-      const cellCz = min.z + (cz + 0.5) * cellD;
-      const halfW = cellW * 0.5 + 0.001;
-      const halfH = cellH * 0.5 + 0.001;
-      const halfD = cellD * 0.5 + 0.001;
-
-      if (triBoxIntersect(a, b, c, cellCx, cellCy, cellCz, halfW, halfH, halfD)){
-        const key = `${cx},${cy},${cz}`;
-        if (!occupied.has(key)){
-          occupied.set(key, { cx, cy, cz, cr, cg, cb });
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Configuración de la API de NVIDIA
+        const API_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+        const API_KEY = "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";
+        const MODEL_NAME = "z-ai/glm-5.2";
+
+        let scene, camera, renderer, controls, originalModel = null, instancedBoxes = null;
+        let showingOriginal = true, totalTriangles = 0, modelBBox = null;
+        let rawBoxesData = []; 
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f0f1a);
+            scene.fog = new THREE.Fog(0x0f0f1a, 25, 80);
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(12, 10, 18);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+
+            scene.add(new THREE.AmbientLight(0x404060, 0.6));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            dirLight.position.set(15, 25, 10); dirLight.castShadow = true;
+            dirLight.shadow.mapSize.set(2048, 2048);
+            scene.add(dirLight);
+            const fill = new THREE.DirectionalLight(0x4488ff, 0.8); fill.position.set(-15, 10, -10); scene.add(fill);
+            const rim = new THREE.DirectionalLight(0xff4488, 0.6); rim.position.set(0, -5, -15); scene.add(rim);
+
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: 0x05050a, roughness: 0.9 }));
+            floor.rotation.x = -Math.PI / 2; floor.position.y = -8; floor.receiveShadow = true; scene.add(floor);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            document.getElementById('file-input').addEventListener('change', handleFileUpload);
+            document.getElementById('build-btn').addEventListener('click', buildWithCubes);
+            document.getElementById('toggle-btn').addEventListener('click', toggleView);
+            document.getElementById('ai-btn').addEventListener('click', repairWithAI);
+            
+            document.getElementById('angle-slider').addEventListener('input', (e) => document.getElementById('angle-val').innerText = e.target.value + "°");
+            document.getElementById('thickness-slider').addEventListener('input', (e) => document.getElementById('thickness-val').innerText = parseFloat(e.target.value).toFixed(2));
         }
-      }
-    }
-  }
 
-  // Si no es solo superficie, hacer flood fill del interior (ray casting por Y)
-  if (!surfOnly && meshes.length > 0){
-    document.getElementById('loadingSub').textContent = 'Rellenando interior…';
-    await sleep(0);
-    // Para cada columna XZ, lanzar rayo hacia +Y y contar cruces de superficie
-    for (let cx = 0; cx < res; cx++){
-      if (cx % 8 === 0){
-        const pct = Math.round(cx / res * 100);
-        document.getElementById('voxelBar').style.width = pct + '%';
-        await sleep(0);
-      }
-      for (let cz = 0; cz < res; cz++){
-        const wx = min.x + (cx + 0.5) * cellW;
-        const wz = min.z + (cz + 0.5) * cellD;
-        raycaster.set(new THREE.Vector3(wx, min.y - 1, wz), new THREE.Vector3(0,1,0));
-        const hits = raycaster.intersectObjects(meshes, false);
-        // Ordenar hits por Y
-        hits.sort((a,b) => a.distance - b.distance);
-        let inside = false;
-        let hi = 0;
-        for (let cy = 0; cy < res; cy++){
-          const wy = min.y + (cy + 0.5) * cellH;
-          while (hi < hits.length && hits[hi].point.y < wy){ inside = !inside; hi++; }
-          if (inside){
-            const key = `${cx},${cy},${cz}`;
-            if (!occupied.has(key)){
-              // Color del hit más cercano
-              let cr = 1, cg = 1, cb = 1;
-              if (hits[0] && hits[0].face){
-                const f = hits[0].face;
-                const obj = hits[0].object;
-                if (obj.material){
-                  const m = Array.isArray(obj.material) ? obj.material[0] : obj.material;
-                  if (m && m.color){ cr = m.color.r; cg = m.color.g; cb = m.color.b; }
+        async function repairWithAI() {
+            if (rawBoxesData.length === 0) return alert("Primero carga un modelo y construye la cáscara base.");
+
+            showLoading("La IA de NVIDIA está analizando imperfecciones...");
+            
+            const areas = rawBoxesData.map(b => b.width * b.height);
+            const avgArea = areas.reduce((a, b) => a + b, 0) / areas.length;
+            
+            const prompt = `
+                Eres un motor de optimización de geometría 3D. Tienes ${rawBoxesData.length} bloques.
+                El área promedio de los bloques es ${avgArea.toFixed(3)}.
+                Hay bloques muy pequeños que son imperfecciones (ruido geométrico) y deberían fusionarse o eliminarse.
+                Devuelve EXCLUSIVAMENTE un JSON válido, sin texto adicional, sin markdown:
+                {
+                    "merge_coplanar": true,
+                    "min_area_threshold": (valor numérico, bloques más pequeños que esto se consideran imperfecciones),
+                    "analysis": "Breve texto de qué reparaste"
                 }
-              }
-              occupied.set(key, { cx, cy, cz, cr: p3(cr), cg: p3(cg), cb: p3(cb) });
+            `;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': `Bearer ${API_KEY}` 
+                    },
+                    body: JSON.stringify({
+                        model: MODEL_NAME,
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: 1,
+                        top_p: 1,
+                        max_tokens: 16384,
+                        seed: 42,
+                        stream: false
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("Error de API (Texto):", errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 150)}`);
+                }
+                
+                const data = await response.json();
+                const aiText = data.choices[0].message.content;
+                
+                const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) {
+                    throw new Error("La IA no devolvió un JSON válido. Respondió: " + aiText.substring(0, 100));
+                }
+                
+                const rules = JSON.parse(jsonMatch[0]);
+                document.getElementById('status-info').innerText = rules.analysis.substring(0, 30) + "...";
+                
+                applyAIReparation(rules);
+                hideLoading();
+            } catch (error) {
+                console.error("Error IA completo:", error);
+                hideLoading();
+                if (error.message.includes("Failed to fetch")) {
+                    alert("Error de red o CORS. El navegador bloqueó la conexión a NVIDIA. Asegúrate de tener internet.");
+                } else {
+                    alert("Error de la IA: " + error.message);
+                }
             }
-          }
         }
-      }
-    }
-  }
 
-  document.getElementById('voxelBar').style.width = '100%';
-  return { voxels: Array.from(occupied.values()) };
-}
+        function applyAIReparation(rules) {
+            showLoading("Fusionando bloques y reparando...");
+            setTimeout(() => {
+                let cleanedBoxes = [...rawBoxesData];
+                
+                if (rules.min_area_threshold) {
+                    cleanedBoxes = cleanedBoxes.filter(b => (b.width * b.height) >= rules.min_area_threshold);
+                }
 
-/* Separating Axis Theorem — triángulo vs AABB */
-function triBoxIntersect(v0, v1, v2, cx, cy, cz, hx, hy, hz){
-  // Trasladar al origen de la caja
-  const a = new THREE.Vector3(v0.x-cx, v0.y-cy, v0.z-cz);
-  const b = new THREE.Vector3(v1.x-cx, v1.y-cy, v1.z-cz);
-  const c = new THREE.Vector3(v2.x-cx, v2.y-cy, v2.z-cz);
+                if (rules.merge_coplanar) {
+                    const merged = [];
+                    const used = new Array(cleanedBoxes.length).fill(false);
+                    
+                    for (let i = 0; i < cleanedBoxes.length; i++) {
+                        if (used[i]) continue;
+                        let group = [cleanedBoxes[i]];
+                        used[i] = true;
+                        
+                        for (let j = i + 1; j < cleanedBoxes.length; j++) {
+                            if (used[j]) continue;
+                            const b2 = cleanedBoxes[j];
+                            const sameDir = cleanedBoxes[i].normal.dot(b2.normal) > 0.99;
+                            const closeDist = cleanedBoxes[i].center.distanceTo(b2.center) < (Math.max(cleanedBoxes[i].width, cleanedBoxes[i].height) + Math.max(b2.width, b2.height));
+                            
+                            if (sameDir && closeDist) {
+                                group.push(b2);
+                                used[j] = true;
+                            }
+                        }
+                        
+                        if (group.length > 1) {
+                            const box3 = new THREE.Box3();
+                            group.forEach(b => {
+                                const min = b.center.clone().sub(new THREE.Vector3(b.width/2, b.height/2, b.thickness/2));
+                                const max = b.center.clone().add(new THREE.Vector3(b.width/2, b.height/2, b.thickness/2));
+                                box3.expandByPoint(min); box3.expandByPoint(max);
+                            });
+                            const size = new THREE.Vector3(); box3.getSize(size);
+                            const center = new THREE.Vector3(); box3.getCenter(center);
+                            merged.push({
+                                width: size.x, height: size.y, thickness: size.z,
+                                center: center, normal: group[0].normal,
+                                bestX: group[0].bestX, bestY: group[0].bestY
+                            });
+                        } else {
+                            merged.push(group[0]);
+                        }
+                    }
+                    cleanedBoxes = merged;
+                }
 
-  const e0 = new THREE.Vector3().subVectors(b, a);
-  const e1 = new THREE.Vector3().subVectors(c, b);
-  const e2 = new THREE.Vector3().subVectors(a, c);
+                if (instancedBoxes) { scene.remove(instancedBoxes); instancedBoxes.geometry.dispose(); instancedBoxes.material.dispose(); }
+                
+                const matrices = [];
+                const colors = [];
+                const color = new THREE.Color();
+                const minY = modelBBox.min.y;
+                const heightRange = modelBBox.max.y - modelBBox.min.y;
 
-  const axes = [
-    new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1),
-    new THREE.Vector3().crossVectors(e0, new THREE.Vector3(1,0,0)),
-    new THREE.Vector3().crossVectors(e0, new THREE.Vector3(0,1,0)),
-    new THREE.Vector3().crossVectors(e0, new THREE.Vector3(0,0,1)),
-    new THREE.Vector3().crossVectors(e1, new THREE.Vector3(1,0,0)),
-    new THREE.Vector3().crossVectors(e1, new THREE.Vector3(0,1,0)),
-    new THREE.Vector3().crossVectors(e1, new THREE.Vector3(0,0,1)),
-    new THREE.Vector3().crossVectors(e2, new THREE.Vector3(1,0,0)),
-    new THREE.Vector3().crossVectors(e2, new THREE.Vector3(0,1,0)),
-    new THREE.Vector3().crossVectors(e2, new THREE.Vector3(0,0,1)),
-    new THREE.Vector3().crossVectors(e0, e1),
-  ];
-  const h = [hx,hy,hz];
-  for (const ax of axes){
-    if (ax.lengthSq() < 1e-10) continue;
-    const pa = ax.dot(a), pb = ax.dot(b), pc = ax.dot(c);
-    const mn = Math.min(pa,pb,pc), mx = Math.max(pa,pb,pc);
-    const r = h[0]*Math.abs(ax.x) + h[1]*Math.abs(ax.y) + h[2]*Math.abs(ax.z);
-    if (mn > r || mx < -r) return false;
-  }
-  return true;
-}
+                cleanedBoxes.forEach(b => {
+                    const matrix = new THREE.Matrix4();
+                    matrix.makeBasis(b.bestX, b.bestY, b.normal);
+                    matrix.setPosition(b.center);
+                    const gap = 0.98;
+                    const scaleM = new THREE.Matrix4().makeScale(b.width * gap, b.height * gap, b.thickness);
+                    matrix.multiply(scaleM);
+                    matrices.push(matrix);
 
-/* ═══════════════════════════════════════════════
-   PREVIEW DE VÓXELES EN THREE.JS
-═══════════════════════════════════════════════ */
-function buildVoxelPreview(voxels, BSX, BSY, BSZ){
-  if (voxelMesh){ scene.remove(voxelMesh); voxelMesh = null; }
+                    const t = heightRange > 0 ? (b.center.y - minY) / heightRange : 0.5;
+                    const hue = (0.66 - t * 0.66 + 1.0) % 1.0;
+                    color.setHSL(hue, 0.85, 0.55);
+                    colors.push(color.r, color.g, color.b);
+                });
 
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  const merged = [];
-  const colors = [];
+                const boxGeom = new THREE.BoxGeometry(1, 1, 1);
+                const boxMat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.3 });
+                instancedBoxes = new THREE.InstancedMesh(boxGeom, boxMat, matrices.length);
+                instancedBoxes.castShadow = true; instancedBoxes.receiveShadow = true;
 
-  // Límite de instancias para rendimiento
-  const MAX_PREVIEW = 8000;
-  const step = voxels.length > MAX_PREVIEW ? Math.ceil(voxels.length / MAX_PREVIEW) : 1;
+                for (let i = 0; i < matrices.length; i++) {
+                    instancedBoxes.setMatrixAt(i, matrices[i]);
+                    const c = new THREE.Color(colors[i*3], colors[i*3+1], colors[i*3+2]);
+                    instancedBoxes.setColorAt(i, c);
+                }
+                instancedBoxes.instanceMatrix.needsUpdate = true;
+                if (instancedBoxes.instanceColor) instancedBoxes.instanceColor.needsUpdate = true;
+                scene.add(instancedBoxes);
 
-  const instGeo = new THREE.InstancedMesh(
-    geo,
-    new THREE.MeshLambertMaterial({ vertexColors: true }),
-    Math.ceil(voxels.length / step)
-  );
-
-  const dummy = new THREE.Object3D();
-  let idx = 0;
-  for (let i = 0; i < voxels.length; i += step){
-    const v = voxels[i];
-    // Convertir coordenadas de celda a posición de mundo relativa (centrada)
-    dummy.position.set(v.cx - 0, v.cy, v.cz - 0);
-    dummy.scale.set(1,1,1);
-    dummy.updateMatrix();
-    instGeo.setMatrixAt(idx, dummy.matrix);
-    instGeo.setColorAt(idx, new THREE.Color(v.cr, v.cg, v.cb));
-    idx++;
-  }
-  instGeo.instanceMatrix.needsUpdate = true;
-  if (instGeo.instanceColor) instGeo.instanceColor.needsUpdate = true;
-
-  voxelMesh = instGeo;
-  scene.add(voxelMesh);
-  voxelMesh.visible = false; // se muestra cuando el usuario activa la vista
-}
-
-/* ═══════════════════════════════════════════════
-   GENERAR JSON EN FORMATO BUILDS.LUA
-   Formato exacto del archivo Lua:
-   {
-     BlockName: [
-       { BlockName, RelX, RelY, RelZ,
-         RotX, RotY, RotZ,
-         SizeX, SizeY, SizeZ,
-         ColorR, ColorG, ColorB,
-         Material, Transparency, Reflectance,
-         UID,
-         FolderValues: { Health: { Value, Type } },
-         PPartValues: [],
-         AllPartColors: { PPart: { ... } }
-       }
-     ]
-   }
-═══════════════════════════════════════════════ */
-function buildOutputJSON(voxels, BSX, BSY, BSZ){
-  const bName  = selectedBlock;
-  const bData  = BLOCKS[bName];
-  const useCol = document.getElementById('useColorToggle').checked;
-  const offX   = parseFloat(document.getElementById('offX').value) || 0;
-  const offY   = parseFloat(document.getElementById('offY').value) || 0;
-  const offZ   = parseFloat(document.getElementById('offZ').value) || 0;
-  const rotYDeg = parseFloat(document.getElementById('rotY').value) || 0;
-
-  const res = parseInt(resSlider.value);
-  // Centrar vóxeles: el modelo está normalizado a 10 unidades → res celdas
-  const midX = (res - 1) / 2;
-  const midZ = (res - 1) / 2;
-
-  const out = { [bName]: [] };
-  const arr = out[bName];
-
-  const rotRad = rotYDeg * Math.PI / 180;
-  const cosR = Math.cos(rotRad), sinR = Math.sin(rotRad);
-
-  for (const v of voxels){
-    // Coordenadas relativas en studs (centradas, Y = altura)
-    let rx = p3((v.cx - midX) * BSX + offX);
-    const ry = p3(v.cy * BSY + offY);
-    let rz = p3((v.cz - midX) * BSZ + offZ);
-
-    // Aplicar rotación Y
-    if (rotYDeg !== 0){
-      const nx = rx * cosR - rz * sinR;
-      const nz = rx * sinR + rz * cosR;
-      rx = p3(nx); rz = p3(nz);
-    }
-
-    // Color: del modelo si está activo, si no el color base del bloque
-    const cR = useCol ? v.cr : bData.r;
-    const cG = useCol ? v.cg : bData.g;
-    const cB = useCol ? v.cb : bData.b;
-
-    const rotYRad = rotYDeg !== 0 ? rotRad : 0;
-    const cosY = p3(Math.cos(rotYRad));
-    const sinY = p3(Math.sin(rotYRad));
-
-    arr.push({
-      BlockName: bName,
-      RotX: 0,
-      RotY: rotYDeg,
-      RotZ: 0,
-      // Matriz de rotación 3x3 (columnas)
-      M00: cosY,  M01: 0, M02: sinY,
-      M10: 0,     M11: 1, M12: 0,
-      M20: -sinY, M21: 0, M22: cosY,
-      RelX: rx,
-      RelY: ry,
-      RelZ: rz,
-      SizeX: BSX,
-      SizeY: BSY,
-      SizeZ: BSZ,
-      ColorR: p3(cR),
-      ColorG: p3(cG),
-      ColorB: p3(cB),
-      Material: bData.mat,
-      Transparency: 0,
-      Reflectance: 0,
-      UID: `${rx},${ry},${rz}`,
-      FolderValues: { Health: { Value: bData.health, Type: "IntValue" } },
-      PPartValues: [],
-      AllPartColors: {
-        PPart: {
-          R: p3(cR), G: p3(cG), B: p3(cB),
-          Material: bData.mat,
-          Transparency: 0,
-          Reflectance: 0,
-          Anchored: true,
-          CanCollide: true,
-          CanTouch: true,
-          CastShadow: true,
-          Massless: false,
-          Shape: "Block",
-          SizeX: BSX,
-          SizeY: BSY,
-          SizeZ: BSZ,
-          CollisionGroup: "WhiteCG"
+                document.getElementById('ai-block-count').innerText = matrices.length.toLocaleString();
+                document.getElementById('status-info').innerText = "Reparado";
+                hideLoading();
+            }, 100);
         }
-      }
-    });
-  }
 
-  outJSON = JSON.stringify(out);
-}
+        function handleFileUpload(event) {
+            const file = event.target.files[0]; 
+            if (!file) return;
+            
+            const isGLTF = file.name.toLowerCase().endsWith('.gltf');
+            showLoading("Cargando modelo...");
+            const reader = new FileReader();
+            
+            if (isGLTF) {
+                reader.onload = (e) => loadGLB(e.target.result);
+                reader.readAsText(file);
+            } else {
+                reader.onload = (e) => loadGLB(e.target.result);
+                reader.readAsArrayBuffer(file);
+            }
+        }
 
-/* ═══════════════════════════════════════════════
-   COPY / DOWNLOAD
-═══════════════════════════════════════════════ */
-function copyJSON(){
-  if (!outJSON){ showToast('Genera primero', true); return; }
-  navigator.clipboard.writeText(outJSON).then(() => showToast('Copiado al portapapeles'));
-}
+        function loadGLB(buffer) {
+            const loader = new GLTFLoader();
+            loader.parse(buffer, '', (gltf) => {
+                if (originalModel) scene.remove(originalModel);
+                originalModel = gltf.scene;
+                modelBBox = new THREE.Box3().setFromObject(originalModel);
+                const center = modelBBox.getCenter(new THREE.Vector3());
+                const size = modelBBox.getSize(new THREE.Vector3());
+                
+                if (size.x === 0 && size.y === 0 && size.z === 0) {
+                    hideLoading();
+                    alert("El modelo 3D parece estar vacío o no tiene geometría válida.");
+                    return;
+                }
 
-function downloadJSON(){
-  if (!outJSON){ showToast('Genera primero', true); return; }
-  const blob = new Blob([outJSON], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'build_export.json';
-  a.click();
-}
+                const scale = 10 / Math.max(size.x, size.y, size.z);
+                originalModel.position.copy(center).multiplyScalar(-scale);
+                originalModel.scale.setScalar(scale);
+                originalModel.updateMatrixWorld(true);
+                
+                totalTriangles = 0;
+                originalModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true; child.receiveShadow = true;
+                        totalTriangles += child.geometry.index ? child.geometry.index.count / 3 : child.geometry.attributes.position.count / 3;
+                    }
+                });
+                scene.add(originalModel);
+                
+                document.getElementById('build-btn').disabled = false;
+                document.getElementById('ai-btn').disabled = false;
+                document.getElementById('toggle-btn').disabled = false;
+                showingOriginal = true;
+                hideLoading();
+                buildWithCubes(); 
+            }, (error) => {
+                console.error("Error al cargar el modelo:", error);
+                hideLoading(); 
+                alert("Error al cargar el modelo. Puede que el archivo esté corrupto o no sea un .glb/.gltf válido.");
+            });
+        }
 
-/* ═══════════════════════════════════════════════
-   UI HELPERS
-═══════════════════════════════════════════════ */
-function setLoading(on, text, sub){
-  const ov = document.getElementById('loadingOverlay');
-  ov.classList.toggle('show', on);
-  if (text) document.getElementById('loadingText').textContent = text;
-  if (sub !== undefined) document.getElementById('loadingSub').textContent = sub;
-  if (!on) document.getElementById('barWrap').style.display = 'none';
-}
+        function buildWithCubes() {
+            if (!originalModel) return;
+            showLoading("Generando cáscara base...");
+            setTimeout(() => { doBuild(); hideLoading(); }, 50);
+        }
 
-function showToast(msg, isErr){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (isErr ? ' error' : '');
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), isErr ? 3500 : 2000);
-}
+        function doBuild() {
+            const baseThickness = parseFloat(document.getElementById('thickness-slider').value);
+            const mergeAngle = parseFloat(document.getElementById('angle-slider').value);
+            const mergeThreshold = Math.cos(THREE.MathUtils.degToRad(mergeAngle));
 
-function formatBytes(b){
-  if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-  return (b/1048576).toFixed(1) + ' MB';
-}
-</script>
+            const triangles = [];
+            originalModel.updateMatrixWorld(true);
+            function getVertexHash(v) { return `${Math.round(v.x*1000)}_${Math.round(v.y*1000)}_${Math.round(v.z*1000)}`; }
+
+            originalModel.traverse((child) => {
+                if (child.isMesh) {
+                    const geom = child.geometry.clone(); geom.applyMatrix4(child.matrixWorld);
+                    const pos = geom.attributes.position.array; const ind = geom.index ? geom.index.array : null;
+                    const num = ind ? ind.length / 3 : pos.length / 9;
+                    for (let i = 0; i < num; i++) {
+                        let i1, i2, i3;
+                        if (ind) { i1 = ind[i*3]*3; i2 = ind[i*3+1]*3; i3 = ind[i*3+2]*3; } else { i1 = i*9; i2 = i*9+3; i3 = i*9+6; }
+                        const v1 = new THREE.Vector3(pos[i1], pos[i1+1], pos[i1+2]);
+                        const v2 = new THREE.Vector3(pos[i2], pos[i2+1], pos[i2+2]);
+                        const v3 = new THREE.Vector3(pos[i3], pos[i3+1], pos[i3+2]);
+                        const normal = new THREE.Vector3().subVectors(v2, v1).cross(new THREE.Vector3().subVectors(v3, v1)).normalize();
+                        triangles.push({ v1, v2, v3, normal, h1: getVertexHash(v1), h2: getVertexHash(v2), h3: getVertexHash(v3) });
+                    }
+                    geom.dispose();
+                }
+            });
+
+            const edgeMap = new Map();
+            function addEdge(h1, h2, i) { const k = h1 < h2 ? `${h1}_${h2}` : `${h2}_${h1}`; if (!edgeMap.has(k)) edgeMap.set(k, []); edgeMap.get(k).push(i); }
+            triangles.forEach((t, i) => { addEdge(t.h1, t.h2, i); addEdge(t.h2, t.h3, i); addEdge(t.h3, t.h1, i); });
+
+            const visited = new Array(triangles.length).fill(false);
+            const patches = [];
+            for (let i = 0; i < triangles.length; i++) {
+                if (visited[i]) continue;
+                const queue = [i]; visited[i] = true; const patchTris = [i];
+                while (queue.length > 0) {
+                    const curr = queue.shift(); const t = triangles[curr];
+                    const edges = [t.h1<t.h2?`${t.h1}_${t.h2}`:`${t.h2}_${t.h1}`, t.h2<t.h3?`${t.h2}_${t.h3}`:`${t.h3}_${t.h2}`, t.h3<t.h1?`${t.h3}_${t.h1}`:`${t.h1}_${t.h3}`];
+                    for (const edge of edges) {
+                        const neighbors = edgeMap.get(edge); if (!neighbors) continue;
+                        for (const nIdx of neighbors) {
+                            if (nIdx === curr || visited[nIdx]) continue;
+                            if (t.normal.dot(triangles[nIdx].normal) > mergeThreshold) { visited[nIdx] = true; patchTris.push(nIdx); queue.push(nIdx); }
+                        }
+                    }
+                }
+                patches.push(patchTris);
+            }
+
+            rawBoxesData = []; 
+            const matrices = []; const colors = []; const color = new THREE.Color();
+            const minY = modelBBox.min.y; const heightRange = modelBBox.max.y - modelBBox.min.y;
+
+            for (const patch of patches) {
+                const verts = new Map(); const edgeDirs = new Set();
+                for (const triIdx of patch) {
+                    const t = triangles[triIdx];
+                    verts.set(t.h1, t.v1); verts.set(t.h2, t.v2); verts.set(t.h3, t.v3);
+                    [[t.v1, t.v2], [t.v2, t.v3], [t.v3, t.v1]].forEach(([p1, p2]) => {
+                        const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                        edgeDirs.add(`${Math.round(dir.x*100)}_${Math.round(dir.y*100)}_${Math.round(dir.z*100)}`);
+                    });
+                }
+                const vertArray = Array.from(verts.values()); if (vertArray.length < 3) continue;
+
+                let avgNormal = new THREE.Vector3();
+                for (const triIdx of patch) avgNormal.add(triangles[triIdx].normal);
+                avgNormal.normalize(); const Z = avgNormal;
+
+                let bestArea = Infinity, bestX = new THREE.Vector3(1,0,0), bestY = new THREE.Vector3(0,1,0);
+                let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+
+                for (const dirHash of edgeDirs) {
+                    const parts = dirHash.split('_').map(Number);
+                    const dir = new THREE.Vector3(parts[0]/100, parts[1]/100, parts[2]/100);
+                    if (dir.lengthSq() < 0.5) continue;
+                    const projDir = dir.clone().sub(Z.clone().multiplyScalar(dir.dot(Z))).normalize();
+                    if (projDir.lengthSq() < 0.1) continue;
+                    const X = projDir; const Y = new THREE.Vector3().crossVectors(Z, X).normalize();
+                    let cu=Infinity, xu=-Infinity, cv=Infinity, xv=-Infinity;
+                    for (const v of vertArray) { const u=v.dot(X), vv=v.dot(Y); if(u<cu)cu=u; if(u>xu)xu=u; if(vv<cv)cv=vv; if(vv>xv)xv=vv; }
+                    const area = (xu - cu) * (xv - cv);
+                    if (area < bestArea) { bestArea=area; bestX=X; bestY=Y; minU=cu; maxU=xu; minV=cv; maxV=xv; }
+                }
+
+                const width = maxU - minU; const height = maxV - minV;
+                if (width <= 0 || height <= 0) continue;
+                const area = width * height;
+                const adaptiveT = baseThickness * (1.0 + Math.sqrt(area) * 0.3);
+                const finalT = Math.min(adaptiveT, Math.min(width, height) * 0.8);
+
+                const centerU = (minU + maxU) / 2; const centerV = (minV + maxV) / 2;
+                const planeDist = vertArray[0].dot(Z);
+                const center = new THREE.Vector3().add(bestX.clone().multiplyScalar(centerU)).add(bestY.clone().multiplyScalar(centerV)).add(Z.clone().multiplyScalar(planeDist));
+
+                rawBoxesData.push({ width, height, thickness: finalT, center: center.clone(), normal: Z.clone(), bestX: bestX.clone(), bestY: bestY.clone() });
+
+                const matrix = new THREE.Matrix4(); matrix.makeBasis(bestX, bestY, Z); matrix.setPosition(center);
+                const scaleM = new THREE.Matrix4().makeScale(width * 0.98, height * 0.98, finalT);
+                matrix.multiply(scaleM); matrices.push(matrix);
+
+                const t = heightRange > 0 ? (center.y - minY) / heightRange : 0.5;
+                color.setHSL((0.66 - t * 0.66 + 1.0) % 1.0, 0.85, 0.55);
+                colors.push(color.r, color.g, color.b);
+            }
+
+            if (instancedBoxes) { scene.remove(instancedBoxes); instancedBoxes.geometry.dispose(); instancedBoxes.material.dispose(); }
+            const boxGeom = new THREE.BoxGeometry(1, 1, 1);
+            const boxMat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.3 });
+            instancedBoxes = new THREE.InstancedMesh(boxGeom, boxMat, matrices.length);
+            instancedBoxes.castShadow = true; instancedBoxes.receiveShadow = true;
+            for (let i = 0; i < matrices.length; i++) {
+                instancedBoxes.setMatrixAt(i, matrices[i]);
+                instancedBoxes.setColorAt(i, new THREE.Color(colors[i*3], colors[i*3+1], colors[i*3+2]));
+            }
+            instancedBoxes.instanceMatrix.needsUpdate = true;
+            if (instancedBoxes.instanceColor) instancedBoxes.instanceColor.needsUpdate = true;
+            scene.add(instancedBoxes);
+
+            originalModel.visible = false; instancedBoxes.visible = true; showingOriginal = false;
+            document.getElementById('block-count').innerText = matrices.length.toLocaleString();
+            document.getElementById('ai-block-count').innerText = "0";
+            document.getElementById('toggle-btn').innerText = "VER MODELO ORIGINAL";
+        }
+
+        function toggleView() {
+            if (!originalModel) return;
+            showingOriginal = !showingOriginal;
+            originalModel.visible = showingOriginal;
+            if (instancedBoxes) instancedBoxes.visible = !showingOriginal;
+            document.getElementById('toggle-btn').innerText = showingOriginal ? "VER CÁSCARA" : "VER MODELO ORIGINAL";
+        }
+
+        function showLoading(text) { document.getElementById('loading-text').innerText = text; document.getElementById('loading').classList.add('show'); }
+        function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+    </script>
 </body>
 </html>
